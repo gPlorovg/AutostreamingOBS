@@ -61,7 +61,7 @@ def on_connect(client, userdata, flags, rc):
 
 def publish(client, topic):
     obs.connect()
-    msg = json.dumps(ping_sources())
+    msg = "PING DATA:" + json.dumps(ping_sources())
     obs.disconnect()
     result = client.publish(topic, msg)
     status = result[0]
