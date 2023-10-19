@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import json
-
+import time
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -8,7 +8,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def publish(client, topic):
-    msg = "PING OBS"
+    msg = json.dumps("PING_OBS")
     result = client.publish(topic, msg)
     status = result[0]
     if not status:
@@ -18,10 +18,8 @@ def publish(client, topic):
 
 
 def on_message(client, userdata, msg):
-    if str(msg.payload).startswith("PING DATA:"):
-        data = json.load(msg)
-        print(msg.topic)
-        print(data)
+    if json.loads(msg.payload) != "PING_OBS":
+        print(json.loads(msg.payload))
 
 
 topic = "/autostream"
@@ -31,5 +29,7 @@ client.on_message = on_message
 client.username_pw_set("recorder", "recorder2020")
 # connect_async to allow background processing
 client.connect_async("172.18.130.40", 1883, 60)
-
-client.loop_forever()
+client.loop_start()
+while True:
+    time.sleep(2)
+    publish(client, topic)
