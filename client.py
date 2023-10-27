@@ -1,6 +1,7 @@
 import subprocess
 import os
 import signal
+import time
 import paho.mqtt.client as mqtt
 from obswebsocket import obsws, requests
 import json
@@ -34,7 +35,15 @@ def find():
             return os.path.join(root)
 
 
-OBS_PATH = find()
+if not os.path.isfile("config.conf"):
+    OBS_PATH = find()
+    with open("config.conf", "w") as f:
+        f.write(OBS_PATH)
+else:
+    with open("config.conf") as f:
+        OBS_PATH = f.readline()
+
+
 # check if obs is running before program was started
 check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
     .replace('"', '').split(",")
