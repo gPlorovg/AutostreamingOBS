@@ -57,10 +57,7 @@ else:
 
 # start obs64.exe
 # !!! obs_process.pid - pid of shell
-obs_process = subprocess.Popen(f'start /d "{OBS_PATH}" obs64.exe', shell=True)
-# check if obs_process is running
-if obs_process.poll() is None:
-    print("alive")
+obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
 
 
 # mqtt connection
@@ -94,4 +91,13 @@ client.username_pw_set("recorder", "recorder2020")
 # connect_async to allow background processing
 client.connect_async("172.18.130.40", 1883, 60)
 
-client.loop_forever()
+client.loop_start()
+while True:
+    time.sleep(1)
+    poll = obs_process.poll()
+    if poll is None:
+        print("It's alive!")
+    else:
+        print("NOT alive!")
+        # start obs64.exe
+        obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
