@@ -1,6 +1,9 @@
 import paho.mqtt.client as mqtt
 import json
 import time
+from os import getenv
+from dotenv import load_dotenv
+
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -26,7 +29,12 @@ topic = "/autostream"
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
-client.username_pw_set("recorder", "recorder2020")
+# get local variables
+load_dotenv()
+USERNAME = getenv("NAME")
+PASSWORD = getenv("PASSWORD")
+
+client.username_pw_set(USERNAME, PASSWORD)
 # connect_async to allow background processing
 client.connect_async("172.18.130.40", 1883, 60)
 client.loop_start()
