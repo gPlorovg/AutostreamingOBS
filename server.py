@@ -38,6 +38,8 @@ client.username_pw_set(USERNAME, PASSWORD)
 # connect_async to allow background processing
 client.connect_async("172.18.130.40", 1883, 60)
 client.loop_start()
+
+# utility modul loop will change this for sending request to client when it necessary
 while True:
     time.sleep(2)
     publish(client, topic)

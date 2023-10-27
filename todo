@@ -1,10 +1,10 @@
-add OBS_PATH to config
-add user and password to env + 1
+add OBS_PATH to config + 0.5
+add user and password to env + 0.5
 
 loop obs
 
-client loop send status and errors on server + 2
-server send PING_OBS by command
+client loop send status and errors on server + 1
+server send PING_OBS by command + 1
 
 +6
 ping camera ip source ( обс не даёт возможности получить состояние подключения источника.
