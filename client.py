@@ -39,6 +39,7 @@ OBS_PATH = find()
 check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
     .replace('"', '').split(",")
 
+# !!! DANGER
 if len(check_obs) == 9:
     print("obs PID: ", check_obs[5])
     os.kill(int(check_obs[5]), signal.SIGTERM)

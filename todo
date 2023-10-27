@@ -1,5 +1,12 @@
-+2 +10
-ping sources from scene
+add OBS_PATH to config
+add user and password to env
+loop obs
+client loop send status and errors on server
+server send PING_OBS by command
+
++6
+ping camera ip source ( обс не даёт возможности получить состояние подключения источника.
+ выход - по заранее подготовленному файлу с названиями камер-ресурсов обс и их ip адресам пинговать камеры)
 
 табели по задачам!
 гит репо команды?
