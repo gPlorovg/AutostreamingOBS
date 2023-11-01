@@ -6,6 +6,9 @@ import paho.mqtt.client as mqtt
 import obspython as obs
 
 
+global client
+
+
 def ping_sources() -> dict:
     resp = dict()
     for source in obs.obs_enum_sources():
@@ -20,6 +23,7 @@ def ping_sources() -> dict:
                 "address": input_address,
                 "is_online": is_online
             }
+    print(resp)
     return resp
 
 
@@ -34,14 +38,15 @@ def script_description():
     return "Ping all ip cameras"
 
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client_, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-    client.subscribe("autostream/ping_sources")
+    client_.subscribe("autostream/ping_sources")
 
 
-def publish(client, topic):
+def publish(client_, topic):
     msg = json.dumps(ping_sources())
-    result = client.publish(topic, msg)
+    print(msg)
+    result = client_.publish(topic, msg)
     # status = result[0]
     # if not status:
     #     print(f"Send {msg} to {topic}")
@@ -49,12 +54,13 @@ def publish(client, topic):
     #     print(f"Failed to send message to topic {topic}")
 
 
-def on_message(client, userdata, msg):
+def on_message(client_, userdata, msg):
     if json.loads(msg.payload) == "PING_OBS":
-        publish(client, msg.topic)
+        publish(client_, msg.topic)
 
 
 def script_load(settings):
+    global client
     topic = "autostream/ping_sources"
     client = mqtt.Client()
     client.on_connect = on_connect
@@ -72,5 +78,6 @@ def script_load(settings):
     # obs.timer_add(ping_sources, 5000)
 
 
-# def script_unload():
-    # obs.timer_remove(ping_sources)
+def script_unload():
+    print("STOP")
+    client.loop_stop()
