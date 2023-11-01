@@ -23,7 +23,6 @@ def ping_sources() -> dict:
                 "address": input_address,
                 "is_online": is_online
             }
-    print(resp)
     return resp
 
 
@@ -45,7 +44,6 @@ def on_connect(client_, userdata, flags, rc):
 
 def publish(client_, topic):
     msg = json.dumps(ping_sources())
-    print(msg)
     result = client_.publish(topic, msg)
     # status = result[0]
     # if not status:

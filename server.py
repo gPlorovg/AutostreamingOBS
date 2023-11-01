@@ -41,5 +41,5 @@ client.loop_start()
 
 # utility modul loop will change this for sending request to client when it necessary
 while True:
-    time.sleep(10)
+    time.sleep(8)
     publish(client, topic)
