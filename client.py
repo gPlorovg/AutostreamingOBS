@@ -3,31 +3,31 @@ import os
 import signal
 import time
 import paho.mqtt.client as mqtt
-from obswebsocket import obsws, requests
+# from obswebsocket import obsws, requests
 import json
 from dotenv import load_dotenv
 
 
 # obs websocket connection
-obs_host = "localhost"
-obs_port = 4455
-obs_password = "TKoxvvk9TPgJNkt4"
-obs = obsws(obs_host, obs_port, obs_password)
+# obs_host = "localhost"
+# obs_port = 4455
+# obs_password = "TKoxvvk9TPgJNkt4"
+# obs = obsws(obs_host, obs_port, obs_password)
 
 
-def ping_sources() -> dict:
-    resp = dict()
-    scenes = obs.call(requests.GetSceneList())
-    scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
-    for scene_name in scenes_names:
-        sources = obs.call(requests.GetSceneItemList(sceneName=scene_name))
-        sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]]
-        resp[scene_name] = dict()
-        for source_name in sources_names:
-            source_activity = obs.call(requests.GetSourceActive(sourceName=source_name))
-            resp[scene_name][source_name] = {"videoActive": source_activity.datain["videoActive"],
-                                             "videoShowing": source_activity.datain["videoShowing"]}
-    return resp
+# def ping_sources() -> dict:
+#     resp = dict()
+#     scenes = obs.call(requests.GetSceneList())
+#     scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
+#     for scene_name in scenes_names:
+#         sources = obs.call(requests.GetSceneItemList(sceneName=scene_name))
+#         sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]]
+#         resp[scene_name] = dict()
+#         for source_name in sources_names:
+#             source_activity = obs.call(requests.GetSourceActive(sourceName=source_name))
+#             resp[scene_name][source_name] = {"videoActive": source_activity.datain["videoActive"],
+#                                              "videoShowing": source_activity.datain["videoShowing"]}
+#     return resp
 
 
 # find path to obs64.exe in disk C:\
@@ -65,13 +65,11 @@ obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
 # mqtt connection
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-    client.subscribe("/autostream")
+    client.subscribe("autostream")
 
 
-def publish(client, topic):
-    obs.connect()
-    msg = json.dumps(ping_sources())
-    obs.disconnect()
+def publish(client, topic, obs_status):
+    msg = json.dumps(obs_status)
     result = client.publish(topic, msg)
     status = result[0]
     if not status:
@@ -80,17 +78,17 @@ def publish(client, topic):
         print(f"Failed to send message to topic {topic}")
 
 
-def on_message(client, userdata, msg):
-    if json.loads(msg.payload) == "PING_OBS":
-        publish(client, msg.topic)
+# def on_message(client, userdata, msg):
+#     if json.loads(msg.payload) == "PING_OBS":
+#         publish(client, msg.topic)
 
 
-topic = "/autostream"
+topic = "autostream/obs_state"
 client = mqtt.Client()
 client.on_connect = on_connect
-client.on_message = on_message
+# client.on_message = on_message
 # get local variables
-load_dotenv()
+load_dotenv("autostreaming.env")
 USERNAME = os.getenv("NAME")
 PASSWORD = os.getenv("PASSWORD")
 
@@ -103,8 +101,8 @@ while True:
     time.sleep(1)
     poll = obs_process.poll()
     if poll is None:
-        print("It's alive!")
+        publish(client, topic, "UP")
     else:
-        print("NOT alive!")
+        publish(client, topic, "DOWN")
         # start obs64.exe
         obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
