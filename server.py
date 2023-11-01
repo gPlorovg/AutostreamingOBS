@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-    client.subscribe("autostream/ping_sources")
+    client.subscribe("autostream/#")
 
 
 def publish(client, topic):
