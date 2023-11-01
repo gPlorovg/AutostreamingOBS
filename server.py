@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-    client.subscribe("/autostream")
+    client.subscribe("autostream/ping_sources")
 
 
 def publish(client, topic):
@@ -25,12 +25,12 @@ def on_message(client, userdata, msg):
         print(json.loads(msg.payload))
 
 
-topic = "/autostream"
+topic = "autostream/ping_sources"
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 # get local variables
-load_dotenv()
+load_dotenv("autostreaming.env")
 USERNAME = getenv("NAME")
 PASSWORD = getenv("PASSWORD")
 
@@ -41,5 +41,5 @@ client.loop_start()
 
 # utility modul loop will change this for sending request to client when it necessary
 while True:
-    time.sleep(2)
+    time.sleep(10)
     publish(client, topic)
