@@ -1,4 +1,5 @@
 import os
+import subprocess
 import json
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
@@ -13,7 +14,7 @@ def ping_sources() -> dict:
         if input_address:
             # if "rtsp://" in input_address:
             cut_address = input_address.split("//")[1].split("/")[0]
-            is_online = os.system("ping -n 1 " + cut_address) == 0
+            is_online = subprocess.call("ping -n 1 " + cut_address, shell=True) == 0
 
             resp[source_name] = {
                 "address": input_address,
