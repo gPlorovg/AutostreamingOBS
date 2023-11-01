@@ -5,6 +5,8 @@ import time
 import paho.mqtt.client as mqtt
 from obswebsocket import obsws, requests
 import json
+from dotenv import load_dotenv
+
 
 # obs websocket connection
 obs_host = "localhost"
@@ -87,7 +89,12 @@ topic = "/autostream"
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
-client.username_pw_set("recorder", "recorder2020")
+# get local variables
+load_dotenv()
+USERNAME = os.getenv("NAME")
+PASSWORD = os.getenv("PASSWORD")
+
+client.username_pw_set(USERNAME, PASSWORD)
 # connect_async to allow background processing
 client.connect_async("172.18.130.40", 1883, 60)
 
