@@ -14,7 +14,7 @@ def ping_sources() -> dict:
     for source in obs.obs_enum_sources():
         source_name = obs.obs_source_get_name(source)
         input_address = obs.obs_data_get_string(obs.obs_source_get_settings(source), "input")
-        if input_address:
+        if input_address and "//" in input_address:
             # if "rtsp://" in input_address:
             cut_address = input_address.split("//")[1].split("/")[0]
             is_online = subprocess.call("ping -n 1 " + cut_address, shell=True) == 0
