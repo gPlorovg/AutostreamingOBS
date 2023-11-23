@@ -8,6 +8,7 @@ import json
 from dotenv import load_dotenv
 
 
+load_dotenv()
 # obs websocket connection
 # obs_host = "localhost"
 # obs_port = 4455
@@ -29,6 +30,21 @@ from dotenv import load_dotenv
 #                                              "videoShowing": source_activity.datain["videoShowing"]}
 #     return resp
 
+def create_obs_script():
+    USERNAME = str(os.getenv("NAME"))
+    PASSWORD = str(os.getenv("PASSWORD"))
+
+    with open("obs_script_template") as t, open("obs_script.py", "w") as f:
+        for line in t:
+            
+            match line:
+                case "# username =\n":
+                    line = "username = \"" + USERNAME + "\"\n"
+                case "# password =\n":
+                    line = "password = \"" + PASSWORD + "\"\n"
+
+            f.write(line)
+
 
 # find path to obs64.exe in disk C:\
 def find():
@@ -45,6 +61,8 @@ else:
     with open("config.conf") as f:
         OBS_PATH = f.readline()
 
+# create obs_script.py file
+create_obs_script()
 
 # check if obs is running before program was started
 check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
@@ -60,7 +78,6 @@ else:
 # start obs64.exe
 # !!! obs_process.pid - pid of shell
 obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
-
 
 # mqtt connection
 def on_connect(client, userdata, flags, rc):
@@ -88,7 +105,7 @@ client = mqtt.Client()
 client.on_connect = on_connect
 # client.on_message = on_message
 # get local variables
-load_dotenv("autostreaming.env")
+
 USERNAME = os.getenv("NAME")
 PASSWORD = os.getenv("PASSWORD")
 

@@ -1,18 +1,9 @@
-add OBS_PATH to config + 0.5
-add user and password to env + 0.5
+- crash popup when shutdown obs
 
-loop obs + 6
-
-client loop send status and errors on server + 1
-server send PING_OBS by command + 1
-
-+6
-ping camera ip source ( обс не даёт возможности получить состояние подключения источника.
- выход - по заранее подготовленному файлу с названиями камер-ресурсов обс и их ip адресам пинговать камеры)
-
- -- obs scripts!
- client sending each time obs access to server
- test anydesk
+прописать регламент +0,5
+вставка паролей +2
+обновление и тестирование
+ip port passord для веб сокета
 
 табели по задачам!
 гит репо команды?

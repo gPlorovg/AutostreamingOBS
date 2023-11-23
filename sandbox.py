@@ -1,9 +1,25 @@
-import os
 import subprocess
+import os
+from dotenv import load_dotenv
 
 
-for i in range(5):
-    # is_online = os.system("ping -n 1 " + "google.com") == 0
-    is_online = subprocess.call("ping -n 1 " + "google.com", shell=True) == 0
-    print("new")
-    print(is_online)
+load_dotenv()
+
+
+def create_obs_script():
+    USERNAME = str(os.getenv("NAME"))
+    PASSWORD = str(os.getenv("PASSWORD"))
+
+    with open("obs_script_template") as t, open("obs_script.py", "w") as f:
+        for line in t:
+            
+            match line:
+                case "# username =\n":
+                    line = "username = \"" + USERNAME + "\"\n"
+                case "# password =\n":
+                    line = "password = \"" + PASSWORD + "\"\n"
+
+            f.write(line)
+
+
+create_obs_script()

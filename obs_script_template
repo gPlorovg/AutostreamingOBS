@@ -1,11 +1,13 @@
-import os
 import subprocess
 import json
-from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 import obspython as obs
 
 
+global username
+# username =
+global password
+# password =
 global client
 
 
@@ -27,10 +29,10 @@ def ping_sources() -> dict:
 
 
 # find path to obs64.exe in disk C:\
-def find():
-    for root, _, files in os.walk("C:\\"):
-        if "autostreaming.env" in files:
-            return os.path.join(root + "\\autostreaming.env")
+# def find():
+#     for root, _, files in os.walk("C:\\"):
+#         if "autostreaming.env" in files:
+#             return os.path.join(root + "\\autostreaming.env")
 
 
 def script_description():
@@ -58,17 +60,17 @@ def on_message(client_, userdata, msg):
 
 
 def script_load(settings):
-    global client
+    global client, username, password
     topic = "autostream/ping_sources"
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
 
     # get local variables
-    env_path = find()
-    load_dotenv(env_path)
-    username = os.getenv("NAME")
-    password = os.getenv("PASSWORD")
+    # env_path = find()
+    # load_dotenv("autostreaming.env")
+    # username = os.getenv("NAME")
+    # password = os.getenv("PASSWORD")
     client.username_pw_set(username, password)
     # connect_async to allow background processing
     client.connect_async("172.18.130.40", 1883, 60)
