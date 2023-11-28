@@ -1,25 +1,11 @@
-import subprocess
-import os
-from dotenv import load_dotenv
+import cv2
 
+cap = cv2.VideoCapture("rtsp://root:pass@192.168.0.91:554/axis-media/media.amp")
 
-load_dotenv()
-
-
-def create_obs_script():
-    USERNAME = str(os.getenv("NAME"))
-    PASSWORD = str(os.getenv("PASSWORD"))
-
-    with open("obs_script_template") as t, open("obs_script.py", "w") as f:
-        for line in t:
-            
-            match line:
-                case "# username =\n":
-                    line = "username = \"" + USERNAME + "\"\n"
-                case "# password =\n":
-                    line = "password = \"" + PASSWORD + "\"\n"
-
-            f.write(line)
-
-
-create_obs_script()
+while(cap.isOpened()):
+    ret, frame = cap.read()
+    cv2.imshow('frame', frame)
+    if cv2.waitKey(20) & 0xFF == ord('q'):
+        break
+cap.release()
+cv2.destroyAllWindows()

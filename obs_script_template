@@ -15,14 +15,19 @@ def ping_sources() -> dict:
     resp = dict()
     for source in obs.obs_enum_sources():
         source_name = obs.obs_source_get_name(source)
-        input_address = obs.obs_data_get_string(obs.obs_source_get_settings(source), "input")
-        if input_address and "//" in input_address:
-            # if "rtsp://" in input_address:
-            cut_address = input_address.split("//")[1].split("/")[0]
-            is_online = subprocess.call("ping -n 1 " + cut_address, shell=True) == 0
+        pipeline = obs.obs_data_get_string(obs.obs_source_get_settings(source), "pipeline")
+        if pipeline and "rtsp://" in pipeline:
+            rtsp_address = pipeline.split("=")[1].split(" ")[0]
+            is_online = True
+            try:
+                rtsp_stream = cv2.VideoCapture(rtsp_address)
+                _, frame = rtsp_stream.read()
+            except:
+                is_online = False
 
             resp[source_name] = {
-                "address": input_address,
+                "name": source_name,
+                "address": rtsp_address,
                 "is_online": is_online
             }
     return resp
