@@ -17,12 +17,14 @@ def ping_sources() -> dict:
         source_name = obs.obs_source_get_name(source)
         pipeline = obs.obs_data_get_string(obs.obs_source_get_settings(source), "pipeline")
         if pipeline and "rtsp://" in pipeline:
-            rtsp_address = pipeline.split("=")[1].split(" ")[0]
+            rtsp_address = pipeline.split("location=")[1].split(" ")[0]
             is_online = True
+            rtsp_stream = cv2.VideoCapture(rtsp_address)
+            if not rtsp_stream.isOpened():
+                is_online = False
             try:
-                rtsp_stream = cv2.VideoCapture(rtsp_address)
                 _, frame = rtsp_stream.read()
-            except:
+            except
                 is_online = False
 
             resp[source_name] = {
