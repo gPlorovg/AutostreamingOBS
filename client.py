@@ -77,8 +77,13 @@ else:
 
 # start obs64.exe
 # !!! obs_process.pid - pid of shell
-obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
-
+try:
+    obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
+except:
+    OBS_PATH = find()
+    with open("config.conf", "w") as f:
+        f.write(OBS_PATH)
+    obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
 # mqtt connection
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
