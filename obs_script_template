@@ -24,7 +24,7 @@ def ping_sources() -> dict:
                 is_online = False
             try:
                 _, frame = rtsp_stream.read()
-            except
+            except:
                 is_online = False
 
             resp[source_name] = {

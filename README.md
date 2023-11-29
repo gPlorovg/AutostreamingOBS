@@ -7,6 +7,7 @@
 2. Python v3.11 и выше
 3. paho-mqtt v1.6.1                                                    
 4. python-dotenv v1
+5. opencv-python v4.8.1.78
 
 ## Регламент установки клиентского приложения Autostreaming
 

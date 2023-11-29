@@ -30,7 +30,7 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 # get local variables
-load_dotenv("autostreaming.env")
+load_dotenv()
 USERNAME = getenv("NAME")
 PASSWORD = getenv("PASSWORD")
 
