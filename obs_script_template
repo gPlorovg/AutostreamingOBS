@@ -1,4 +1,4 @@
-import subprocess
+# import subprocess
 import json
 import paho.mqtt.client as mqtt
 import obspython as obs
@@ -19,8 +19,12 @@ def ping_sources() -> dict:
         pipeline = obs.obs_data_get_string(obs.obs_source_get_settings(source), "pipeline")
         if pipeline and "rtsp://" in pipeline:
             rtsp_address = pipeline.split("location=")[1].split(" ")[0]
+            # ip_address = rtsp_address.split("//")[1].split("/")[0]
+            # if ":" in ip_address:
+            #     ip_address = ip_address.split(":")[0]
+            # ping = subprocess.call("ping -n 1 " + ip_address, shell=True) == 0
             is_online = True
-            rtsp_stream = cv2.VideoCapture(rtsp_address)
+            rtsp_stream = cv2.VideoCapture(rtsp_address, cv2.CAP_FFMPEG)
             if not rtsp_stream.isOpened():
                 is_online = False
             try:
