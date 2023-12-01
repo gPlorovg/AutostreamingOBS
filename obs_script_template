@@ -33,7 +33,6 @@ def ping_sources() -> dict:
                 is_online = False
 
             resp[source_name] = {
-                "name": source_name,
                 "address": rtsp_address,
                 "is_online": is_online
             }

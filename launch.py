@@ -3,12 +3,13 @@ from dotenv import load_dotenv
 
 
 WORK_DIRECTORY = os.getcwd() + "\\"
-load_dotenv(WORK_DIRECTORY + ".env")
+load_dotenv()
 
 
 def create_env_file(username, password):
-    os.putenv("NAME", username)
-    os.putenv("PASSWORD", password)
+    with open(".env", "w") as f:
+        f.write("NAME=" + username + "\n")
+        f.write("PASSWORD=" + password + "\n")
 
 
 def info():
@@ -17,9 +18,7 @@ def info():
     if mqtt_username and mqtt_password:
         create_env_file(mqtt_username, mqtt_password)
 
-    python_path = WORK_DIRECTORY + "Scripts\\"
-    print("\nPython Path for OBS scripts:")
-    print(python_path)
+    python_path = WORK_DIRECTORY + "autostreaming-env\\" + "Scripts\\"
 
     schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + python_path + "pythonw.exe " \
                            + WORK_DIRECTORY + "client.py" + "\""
