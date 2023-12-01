@@ -5,23 +5,15 @@
 ## Предустановки
 1. OBS Studio v29.1.3 и выше
 2. Python v3.11 и выше
-3. paho-mqtt v1.6.1                                                    
-4. python-dotenv v1
-5. opencv-python v4.8.1.78
 
 ## Регламент установки клиентского приложения Autostreaming
 
 1. Склонировать репозиторий
-2. Создать ".env" файл
-3. Вписать в ".env" файл имя и пароль для подключения к серверу
+2. Запустить файл "launch.py"
+3. Ввести необходимые данные
 ```
-NAME=имя
-PASSWORD=пароль
-```
-5. Сохранить ".env" файл
-6. Запустить файл "client.py" в фоновом режиме
-```
-pythonw.exe client.py
+Input MQTT username:
+Input MQTT password:
 ```
 7. В открывшемся окне OBS studio настроить Python интерпретатор
 ```

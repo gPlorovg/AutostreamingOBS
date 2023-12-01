@@ -7,62 +7,19 @@ import paho.mqtt.client as mqtt
 import json
 from dotenv import load_dotenv
 
+# variable fill by launch.py
+# WORK_DIRECTORY =
 
-load_dotenv()
+load_dotenv(WORK_DIRECTORY + ".env")
 # obs websocket connection
 # obs_host = "localhost"
 # obs_port = 4455
 # obs_password = "TKoxvvk9TPgJNkt4"
 # obs = obsws(obs_host, obs_port, obs_password)
 
-
-# def ping_sources() -> dict:
-#     resp = dict()
-#     scenes = obs.call(requests.GetSceneList())
-#     scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
-#     for scene_name in scenes_names:
-#         sources = obs.call(requests.GetSceneItemList(sceneName=scene_name))
-#         sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]]
-#         resp[scene_name] = dict()
-#         for source_name in sources_names:
-#             source_activity = obs.call(requests.GetSourceActive(sourceName=source_name))
-#             resp[scene_name][source_name] = {"videoActive": source_activity.datain["videoActive"],
-#                                              "videoShowing": source_activity.datain["videoShowing"]}
-#     return resp
-
-def create_obs_script():
-    USERNAME = str(os.getenv("NAME"))
-    PASSWORD = str(os.getenv("PASSWORD"))
-
-    with open("obs_script_template") as t, open("obs_script.py", "w") as f:
-        for line in t:
-            
-            match line:
-                case "# username =\n":
-                    line = "username = \"" + USERNAME + "\"\n"
-                case "# password =\n":
-                    line = "password = \"" + PASSWORD + "\"\n"
-
-            f.write(line)
-
-
-# find path to obs64.exe in disk C:\
-def find():
-    for root, _, files in os.walk("C:\\"):
-        if "obs64.exe" in files:
-            return os.path.join(root)
-
-
-if not os.path.isfile("config.conf"):
-    OBS_PATH = find()
-    with open("config.conf", "w") as f:
-        f.write(OBS_PATH)
-else:
-    with open("config.conf") as f:
+if os.path.isfile(WORK_DIRECTORY + "config.conf"):
+    with open(WORK_DIRECTORY + "config.conf") as f:
         OBS_PATH = f.readline()
-
-# create obs_script.py file
-create_obs_script()
 
 # check if obs is running before program was started
 check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
@@ -77,13 +34,14 @@ else:
 
 # start obs64.exe
 # !!! obs_process.pid - pid of shell
-try:
+if os.path.isfile(OBS_PATH + "\\" + "obs64.exe"):
     obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
-except:
-    OBS_PATH = find()
-    with open("config.conf", "w") as f:
-        f.write(OBS_PATH)
-    obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
+# else:
+#     OBS_PATH = find()
+#     with open("config.conf", "w") as f:
+#         f.write(OBS_PATH)
+#     obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
+
 # mqtt connection
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -127,4 +85,5 @@ while True:
     else:
         publish(client, topic, "DOWN")
         # start obs64.exe
-        obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
+        if os.path.isfile(OBS_PATH + "\\" + "obs64.exe"):
+            obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
