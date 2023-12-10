@@ -1,7 +1,8 @@
+import sys
 import os
 from dotenv import load_dotenv
 
-
+PYTHON_PATH = sys.executable.rstrip("python.exe")
 WORK_DIRECTORY = os.getcwd() + "\\"
 load_dotenv()
 
@@ -18,12 +19,12 @@ def info():
     if mqtt_username and mqtt_password:
         create_env_file(mqtt_username, mqtt_password)
 
-    python_path = WORK_DIRECTORY + "autostreaming-env\\" + "Scripts\\"
-
-    schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + python_path + "pythonw.exe " \
+    schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + PYTHON_PATH + "pythonw.exe " \
                            + WORK_DIRECTORY + "client.py" + "\""
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
+    print("\n Python Path:")
+    print(PYTHON_PATH)
 
 
 def create_client_script():
