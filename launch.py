@@ -1,5 +1,6 @@
 import sys
 import os
+from getpass import getpass
 from dotenv import load_dotenv
 
 PYTHON_PATH = sys.executable.rstrip("python.exe")
@@ -15,7 +16,7 @@ def create_env_file(username, password):
 
 def info():
     mqtt_username = input("Input MQTT username:")
-    mqtt_password = input("Input MQTT password:")
+    mqtt_password = getpass("Input MQTT password:")
     if mqtt_username and mqtt_password:
         create_env_file(mqtt_username, mqtt_password)
 
