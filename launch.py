@@ -24,7 +24,7 @@ def info():
                            + WORK_DIRECTORY + "client.py" + "\""
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
-    print("\n Python Path:")
+    print("\nPython Path:")
     print(PYTHON_PATH)
 
 
