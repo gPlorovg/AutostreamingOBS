@@ -9,7 +9,7 @@ from obswebsocket import obsws, exceptions
 PYTHON_PATH = sys.executable.rstrip("python.exe")
 WORK_DIRECTORY = os.getcwd() + "\\"
 
-config = {"mqtt_broker_ip": "172.18.130.40", "mqtt_broker_port": 1883, "mqtt_broker_keep_alive_time": 60,
+config = {"mqtt_broker_host": "172.18.130.40", "mqtt_broker_port": 1883, "mqtt_broker_keep_alive_time": 60,
           "update_loop_time": 1}
 load_dotenv()
 
@@ -59,7 +59,7 @@ def start():
         obsws_port = input("Input OBS websocket port:")
         obsws_password = getpass("Input OBS websocket password:")
 
-    config.update({"OBSWS_HOST": obsws_host, "OBSWS_PORT": obsws_port})
+    config.update({"obsws_host": obsws_host, "obsws_port": obsws_port})
     create_env_file(mqtt_username, mqtt_password, obsws_password)
 
     schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + PYTHON_PATH + "pythonw.exe " \
@@ -89,7 +89,7 @@ def find():
 
 def create_config():
     obs_path = find()
-    config.update({"OBS_PATH": obs_path})
+    config.update({"obs_path": obs_path})
 
     with open("config.json", "w") as f:
         json.dump(config, f)
