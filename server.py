@@ -1,8 +1,8 @@
 import paho.mqtt.client as mqtt
 import json
-import time
 from os import getenv
 from dotenv import load_dotenv
+import requests
 
 
 def on_connect(client, userdata, flags, rc):
@@ -21,8 +21,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    state = json.loads(msg.payload)
-    print(state)
+    requests.post("http://127.0.0.1:8000/client_state", data=msg.payload)
 
 
 topic = "autostream/obs_state"
