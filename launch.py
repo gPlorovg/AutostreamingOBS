@@ -14,7 +14,7 @@ def create_env_file(username, password):
         f.write("PASSWORD=" + password + "\n")
 
 
-def info():
+def start():
     mqtt_username = input("Input MQTT username:")
     mqtt_password = getpass("Input MQTT password:")
     if mqtt_username and mqtt_password:
@@ -24,8 +24,6 @@ def info():
                            + WORK_DIRECTORY + "client.py" + "\""
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
-    print("\nPython Path:")
-    print(PYTHON_PATH)
 
 
 def create_client_script():
@@ -59,24 +57,6 @@ def create_config_file():
                 f.write(obs_path)
 
 
-def create_obs_script():
-    username = str(os.getenv("NAME"))
-    password = str(os.getenv("PASSWORD"))
-
-    with open("obs_script_template") as t,\
-            open("obs_script.py", "w") as f:
-        for line in t:
-            match line:
-                case "# username =\n":
-                    line = "username = \"" + username + "\"\n"
-                case "# password =\n":
-                    line = "password = \"" + password + "\"\n"
-            f.write(line)
-
-
-info()
+start()
 create_config_file()
 create_client_script()
-# create obs_script.py file
-if not os.path.isfile("obs_script.py"):
-    create_obs_script()
