@@ -89,6 +89,7 @@ def test():
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
 
+
 def create_client_script():
     with open("client_template") as t,\
             open("client.py", "w") as f:
