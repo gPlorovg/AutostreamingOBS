@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+import time
 from getpass import getpass
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
@@ -18,11 +19,15 @@ def check_mqtt_connection(username, password):
     client = mqtt.Client()
     client.username_pw_set(username, password)
     client.connect_async(config["mqtt_broker_host"], config["mqtt_broker_port"], config["mqtt_broker_keep_alive_time"])
-    if client.is_connected():
+    time.sleep(0.5)
+    client.loop_start()
+    state = client.is_connected()
+    client.loop_stop()
+
+    if state:
         client.disconnect()
-        return True
-    else:
-        return False
+
+    return state
 
 
 def check_obsws_connection(host, port, password):
