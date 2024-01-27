@@ -1,11 +1,15 @@
-* проблема локального адреса сервера
+~~ табели по задачам! ~~
+
 
 +1 поставить на компы в 505
 
-табели по задачам!
+добавить таймаут на закрытие и открытие obs
 
 /f через бота смотреть скрин обс
 /f удалённое включение пк
 
+{
 Bad: 146
 data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAD0lEQVQYlWNgGAUMDAwMAAEIAAF9QaXOAAAAAElFTkSuQmCC
+}
+* проблема локального адреса сервера
