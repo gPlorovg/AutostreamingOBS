@@ -17,7 +17,7 @@ load_dotenv()
 def check_mqtt_connection(username, password):
     client = mqtt.Client()
     client.username_pw_set(username, password)
-    client.connect_async(config["mqtt_broker_ip"], config["mqtt_broker_port"], config["mqtt_broker_keep_alive_time"])
+    client.connect_async(config["mqtt_broker_host"], config["mqtt_broker_port"], config["mqtt_broker_keep_alive_time"])
     if client.is_connected():
         client.disconnect()
         return True
