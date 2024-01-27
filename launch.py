@@ -1,29 +1,72 @@
+import json
 import sys
 import os
 from getpass import getpass
 from dotenv import load_dotenv
+import paho.mqtt.client as mqtt
+from obswebsocket import obsws, exceptions
 
 PYTHON_PATH = sys.executable.rstrip("python.exe")
 WORK_DIRECTORY = os.getcwd() + "\\"
+
+config = {"mqtt_broker_ip": "172.18.130.40", "mqtt_broker_port": 1883, "mqtt_broker_keep_alive_time": 60,
+          "update_loop_time": 1}
 load_dotenv()
 
 
-def create_env_file(username, password):
+def check_mqtt_connection(username, password):
+    client = mqtt.Client()
+    client.username_pw_set(username, password)
+    client.connect_async(config["mqtt_broker_ip"], config["mqtt_broker_port"], config["mqtt_broker_keep_alive_time"])
+    if client.is_connected():
+        client.disconnect()
+        return True
+    else:
+        return False
+
+
+def check_obsws_connection(host, port, password):
+    obs = obsws(host, port, password)
+    try:
+        obs.connect()
+    except exceptions.ConnectionFailure:
+        return False
+    else:
+        return True
+
+
+def create_env_file(mqtt_username, mqtt_password, obsws_password):
     with open(".env", "w") as f:
-        f.write("NAME=" + username + "\n")
-        f.write("PASSWORD=" + password + "\n")
+        f.write("MQTT_USERNAME=" + mqtt_username + "\n")
+        f.write("MQTT_PASSWORD=" + mqtt_password + "\n")
+        f.write("OBSWS_PASSWORD=" + obsws_password + "\n")
 
 
 def start():
     mqtt_username = input("Input MQTT username:")
     mqtt_password = getpass("Input MQTT password:")
-    if mqtt_username and mqtt_password:
-        create_env_file(mqtt_username, mqtt_password)
+
+    while not check_mqtt_connection(mqtt_username, mqtt_password):
+        mqtt_username = input("Input MQTT username:")
+        mqtt_password = getpass("Input MQTT password:")
+
+    obsws_host = input("Input OBS websocket host:")
+    obsws_port = input("Input OBS websocket port:")
+    obsws_password = getpass("Input OBS websocket password:")
+
+    while not check_obsws_connection(obsws_host, obsws_port, obsws_password):
+        obsws_host = input("Input OBS websocket host:")
+        obsws_port = input("Input OBS websocket port:")
+        obsws_password = getpass("Input OBS websocket password:")
+
+    config.update({"OBSWS_HOST": obsws_host, "OBSWS_PORT": obsws_port})
+    create_env_file(mqtt_username, mqtt_password, obsws_password)
 
     schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + PYTHON_PATH + "pythonw.exe " \
                            + WORK_DIRECTORY + "client.py" + "\""
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
+
 
 
 def create_client_script():
@@ -41,22 +84,17 @@ def find():
         if "obs64.exe" in files:
             return os.path.join(root)
 
+    return None
 
-def create_config_file():
-    if not os.path.isfile("config.conf"):
-        obs_path = find()
-        with open("config.conf", "w") as f:
-            f.write(obs_path)
-    else:
-        with open("config.conf") as f:
-            obs_path = f.readline()
 
-        if not os.path.isfile(obs_path + "\\" + "obs64.exe"):
-            obs_path = find()
-            with open("config.conf", "w") as f:
-                f.write(obs_path)
+def create_config():
+    obs_path = find()
+    config.update({"OBS_PATH": obs_path})
+
+    with open("config.json", "w") as f:
+        json.dump(config, f)
 
 
 start()
-create_config_file()
+create_config()
 create_client_script()
