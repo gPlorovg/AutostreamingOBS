@@ -47,6 +47,7 @@ def start():
     mqtt_password = getpass("Input MQTT password:")
 
     while not check_mqtt_connection(mqtt_username, mqtt_password):
+        print("Connection error! Check your information and try again.\n")
         mqtt_username = input("Input MQTT username:")
         mqtt_password = getpass("Input MQTT password:")
 
@@ -55,6 +56,7 @@ def start():
     obsws_password = getpass("Input OBS websocket password:")
 
     while not check_obsws_connection(obsws_host, obsws_port, obsws_password):
+        print("Connection error! Check your information and try again.\n")
         obsws_host = input("Input OBS websocket host:")
         obsws_port = input("Input OBS websocket port:")
         obsws_password = getpass("Input OBS websocket password:")
