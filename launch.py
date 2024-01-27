@@ -75,6 +75,19 @@ def start():
     print(schedule_run_command)
 
 
+def test():
+    mqtt_username = "recorder"
+    mqtt_password = "recorder2020"
+    obsws_host = "localhost"
+    obsws_port = 4455
+    obsws_password = "KERA3InQESizeUSa"
+    config.update({"obsws_host": obsws_host, "obsws_port": obsws_port})
+    create_env_file(mqtt_username, mqtt_password, obsws_password)
+
+    schedule_run_command = "schtasks /create /sc ONLOGON /tn Autostreaming /tr " + "\"" + PYTHON_PATH + "pythonw.exe " \
+                           + WORK_DIRECTORY + "client.py" + "\""
+    print("\nAutorun command for Autostreaming client app:")
+    print(schedule_run_command)
 
 def create_client_script():
     with open("client_template") as t,\
@@ -102,6 +115,7 @@ def create_config():
         json.dump(config, f)
 
 
-start()
+# start()
+test()
 create_config()
 create_client_script()

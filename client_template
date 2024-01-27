@@ -24,13 +24,12 @@ if os.path.isfile(WORK_DIRECTORY + "config.json"):
         OBS_PATH = config["obs_path"]
         MQTT_BROKER_HOST = config["mqtt_broker_host"]
         MQTT_BROKER_PORT = config["mqtt_broker_port"]
-        MQTT_BROKER_KEEP_ALIVE_TIME = ["mqtt_broker_keep_alive_time"]
+        MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
         UPDATE_LOOP_TIME = config["update_loop_time"]
 else:
     exit("Error: config.json not found")
 
 obs_ws = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
-
 # check if obs is running before program was started
 check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
     .replace('"', '').split(",")
@@ -51,6 +50,7 @@ else:
 
 
 def ping_sources() -> dict:
+    obs_ws.connect()
     resp = dict()
     scenes = obs_ws.call(requests.GetSceneList())
     scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
@@ -60,12 +60,13 @@ def ping_sources() -> dict:
         resp[scene_name] = list()
         for source_name in sources_names:
             screenshot = obs_ws.call(requests.GetSourceScreenshot(sourceName=source_name, imageWidth=8, imageHeight=8,
-                                             imageFormat="png"))
+                                             imageFormat="png")).datain["imageData"]
             state = False if len(screenshot) == 146 else True
             resp[scene_name].append({
                 "source": source_name,
                 "state": state
             })
+    obs_ws.disconnect()
     return resp
 
 
@@ -98,11 +99,14 @@ def publish_state(client, topic, obs_state):
 
 
 def on_message(client, userdata, msg):
-    if json.loads(msg.payload) == "PING_OBS":
+    print(msg.payload)
+    if b'PING_OBS' == msg.payload:
         publish_ping(client, msg.topic)
+    # if json.loads(msg.payload) == "PING_OBS":
+    #     publish_ping(client, msg.topic)
 
 
-obs_name = OBSWS_HOST + ":" + OBSWS_PORT
+obs_name = OBSWS_HOST + ":" + str(OBSWS_PORT)
 STATE_TOPIC = "autostream/obs_state"
 PING_TOPIC = "autostream/ping_sources"
 client = mqtt.Client()
