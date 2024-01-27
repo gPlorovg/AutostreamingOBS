@@ -19,8 +19,8 @@ def check_mqtt_connection(username, password):
     client = mqtt.Client()
     client.username_pw_set(username, password)
     client.connect_async(config["mqtt_broker_host"], config["mqtt_broker_port"], config["mqtt_broker_keep_alive_time"])
-    time.sleep(0.5)
     client.loop_start()
+    time.sleep(0.5)
     state = client.is_connected()
     client.loop_stop()
 
