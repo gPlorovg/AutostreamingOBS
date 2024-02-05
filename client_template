@@ -7,49 +7,46 @@ from obswebsocket import obsws, requests
 import json
 from dotenv import load_dotenv
 
-# variable fill by launch.py
-# WORK_DIRECTORY =
 
-load_dotenv(WORK_DIRECTORY + ".env")
-# get local variables
-MQTT_USERNAME = os.getenv("MQTT_USERNAME")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
-OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
-
-if os.path.isfile(WORK_DIRECTORY + "config.json"):
-    with open(WORK_DIRECTORY + "config.json") as f:
-        config = json.load(f)
-        OBSWS_HOST = config["obsws_host"]
-        OBSWS_PORT = config["obsws_port"]
-        OBS_PATH = config["obs_path"]
-        MQTT_BROKER_HOST = config["mqtt_broker_host"]
-        MQTT_BROKER_PORT = config["mqtt_broker_port"]
-        MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
-        UPDATE_LOOP_TIME = config["update_loop_time"]
-else:
-    exit("Error: config.json not found")
-
-obs_ws = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
-# check if obs is running before program was started
-check_obs = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(encoding="windows-1251")\
-    .replace('"', '').split(",")
-# !!! DANGER
-if len(check_obs) == 9:
-    # print("obs PID: ", check_obs[5])
-    os.kill(int(check_obs[5]), signal.SIGTERM)
-    time.sleep(2)
-# else:
-    # print("No obs detected!")
-
-# start obs64.exe
-# !!! obs_process.pid = pid of shell
-if os.path.isfile(OBS_PATH + "\\" + "obs64.exe"):
-    obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
-else:
-    exit("OBS_PATH Error: obs64.exe not found")
+def check_configure(path: str) -> bool:
+    return os.path.isfile(path + "config.json")
 
 
-def ping_sources() -> dict:
+def get_obs_pid() -> int or None:
+    def obs_is_running(check_obs: list) -> bool:
+        # 9 - length of shell output if obs process was found
+        return len(check_obs) == 9
+
+    obs_pid = None
+    shell_output = subprocess.check_output('tasklist /fi "IMAGENAME eq obs64.exe" /fo "CSV"').decode(
+        encoding="windows-1251").replace('"', '').split(",")
+
+    if obs_is_running(shell_output):
+        obs_pid = int(shell_output[5])
+
+    return obs_pid
+
+
+def kill_process(pid: int):
+    # !!! DANGER
+    os.kill(pid, signal.SIGTERM)
+
+
+def check_obs_path(path: str):
+    return os.path.isfile(path + "\\" + "obs64.exe")
+
+
+def start_obs_process() -> subprocess.Popen or None:
+    # !!! obs_process.pid = pid of shell
+    obs_process = None
+
+    if check_obs_path(OBS_PATH):
+        obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
+
+    return obs_process
+
+
+def ping_sources(obs_ws: obsws) -> dict:
     obs_ws.connect()
     resp = dict()
     scenes = obs_ws.call(requests.GetSceneList())
@@ -60,24 +57,27 @@ def ping_sources() -> dict:
         resp[scene_name] = list()
         for source_name in sources_names:
             screenshot = obs_ws.call(requests.GetSourceScreenshot(sourceName=source_name, imageWidth=8, imageHeight=8,
-                                             imageFormat="png")).datain["imageData"]
+                                                                  imageFormat="png")).datain["imageData"]
+            # 146 - length of base64 data string about empty png image
             state = False if len(screenshot) == 146 else True
+
             resp[scene_name].append({
                 "source": source_name,
                 "state": state
             })
+
     obs_ws.disconnect()
     return resp
 
 
-# mqtt connection
+# MQTT connection
 def on_connect(client, userdata, flags, rc):
     # print("Connected with result code "+str(rc))
     client.subscribe("autostream/ping_sources")
 
 
 def publish_ping(client, topic):
-    msg = json.dumps({obs_name: ping_sources()})
+    msg = json.dumps({OBS_NAME: ping_sources(obs_websockets)})
     client.publish(topic, msg)
     # result = client.publish(topic, msg)
     # status = result[0]
@@ -99,51 +99,110 @@ def publish_state(client, topic, obs_state):
 
 
 def on_message(client, userdata, msg):
-    print(msg.payload)
+    # PING_OBS - special command that sign client app to do and send ping data
     if b'PING_OBS' == msg.payload:
         publish_ping(client, msg.topic)
     # if json.loads(msg.payload) == "PING_OBS":
     #     publish_ping(client, msg.topic)
 
 
-obs_name = OBSWS_HOST + ":" + str(OBSWS_PORT)
+def create_mqtt_client(username: str, password: str, host: str, port: int) -> mqtt.Client or None:
+    def check_mqtt_connection(client: mqtt.Client, host: str, port: int) -> bool:
+        client.connect_async(host, port)
+        client.loop_start()
+        # sleep!
+        time.sleep(0.5)
+        state = client.is_connected()
+        client.loop_stop()
+
+        if state:
+            client.disconnect()
+
+        return state
+
+    client = mqtt.Client()
+    client.username_pw_set(username, password)
+
+    if check_mqtt_connection(client, host, port):
+        client.on_connect = on_connect
+        client.on_message = on_message
+        return client
+
+    return None
+
+
+def poll_process(process: subprocess.Popen) -> dict:
+    poll = process.poll()
+    time_stamp = time.time()
+    state = poll is None
+    msg = {
+        "name": OBS_NAME,
+        "time": time_stamp,
+        "state": state,
+    }
+    return msg
+
+
+# variable fill by launch.py
+WORK_DIRECTORY = "C:\IT\Autostreaming\AutostreamingOBS\\"
+
+load_dotenv(WORK_DIRECTORY + ".env")
+# get local variables
+MQTT_USERNAME = os.getenv("MQTT_USERNAME")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
+
+if check_configure(WORK_DIRECTORY):
+    with open(WORK_DIRECTORY + "config.json") as f:
+        config = json.load(f)
+        OBSWS_HOST = config["obsws_host"]
+        OBSWS_PORT = config["obsws_port"]
+        OBS_PATH = config["obs_path"]
+        MQTT_BROKER_HOST = config["mqtt_broker_host"]
+        MQTT_BROKER_PORT = config["mqtt_broker_port"]
+        MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
+        UPDATE_LOOP_TIME = config["update_loop_time"]
+else:
+    exit("Error: config.json not found")
+
+OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
 STATE_TOPIC = "autostream/obs_state"
 PING_TOPIC = "autostream/ping_sources"
-client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
 
-client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
-# connect_async to allow background processing
-client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
-client.loop_start()
+# create obs websockets object
+obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
+# check if obs is running before program was started
+obs_pid = get_obs_pid()
 
-while True:
-    time.sleep(UPDATE_LOOP_TIME)
-    poll = obs_process.poll()
-    time_stamp = time.time()
-    error_msg = None
-    if poll is None:
-        state = True
-        obs_state_msg = {
-            "name": obs_name,
-            "time": time_stamp,
-            "state": state,
-            "error_msg": error_msg
-        }
-        publish_state(client, STATE_TOPIC, obs_state_msg)
-    else:
-        state = False
-        # try start obs64.exe
-        if os.path.isfile(OBS_PATH + "\\" + "obs64.exe"):
-            obs_process = subprocess.Popen(OBS_PATH + "\\" + "obs64.exe", cwd=OBS_PATH)
-        else:
-            error_msg = "OBS_PATH Error: obs64.exe not found"
+if obs_pid is not None:
+    kill_process(obs_pid)
+    # sleep!
+    time.sleep(2)
 
-        obs_state_msg = {
-            "name": obs_name,
-            "time": time_stamp,
-            "state": state,
-            "error_msg": error_msg
-        }
-        publish_state(client, STATE_TOPIC, obs_state_msg)
+# start obs64.exe
+obs_process = start_obs_process()
+
+# create mqtt_client
+mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
+
+if mqtt_client is not None:
+    # connect_async to allow background processing
+    mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
+    mqtt_client.loop_start()
+
+    while True:
+        # sleep!
+        time.sleep(UPDATE_LOOP_TIME)
+        obs_state_msg = poll_process(obs_process)
+        publish_state(mqtt_client, STATE_TOPIC, obs_state_msg)
+
+        if not obs_state_msg["state"]:
+            # try restart obs64.exe 3 times
+            try_count = 0
+            obs_process = start_obs_process()
+
+            while obs_process is None and try_count < 3:
+                # sleep !
+                time.sleep(1)
+                obs_process = start_obs_process()
+                try_count += 1
