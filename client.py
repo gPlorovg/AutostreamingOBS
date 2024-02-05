@@ -143,8 +143,7 @@ def poll_process(process: subprocess.Popen) -> dict:
     return msg
 
 
-# variable fill by launch.py
-WORK_DIRECTORY = "C:\IT\Autostreaming\AutostreamingOBS\\"
+WORK_DIRECTORY = os.getcwd() + "\\"
 
 load_dotenv(WORK_DIRECTORY + ".env")
 # get local variables
@@ -168,9 +167,6 @@ else:
 OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
 STATE_TOPIC = "autostream/obs_state"
 PING_TOPIC = "autostream/ping_sources"
-
-# create obs websockets object
-obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 # check if obs is running before program was started
 obs_pid = get_obs_pid()
 
@@ -181,7 +177,8 @@ if obs_pid is not None:
 
 # start obs64.exe
 obs_process = start_obs_process()
-
+# create obs websockets object
+obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
@@ -195,7 +192,6 @@ if mqtt_client is not None:
         time.sleep(UPDATE_LOOP_TIME)
         obs_state_msg = poll_process(obs_process)
         publish_state(mqtt_client, STATE_TOPIC, obs_state_msg)
-
         if not obs_state_msg["state"]:
             # try restart obs64.exe 3 times
             try_count = 0
@@ -206,3 +202,5 @@ if mqtt_client is not None:
                 time.sleep(1)
                 obs_process = start_obs_process()
                 try_count += 1
+else:
+    obs_process.kill()
