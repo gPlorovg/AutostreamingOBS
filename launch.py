@@ -3,7 +3,6 @@ import sys
 import os
 import time
 from getpass import getpass
-from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
 from obswebsocket import obsws, exceptions
 
@@ -12,11 +11,12 @@ def check_configure(path: str) -> bool:
     return os.path.isfile(path + "config.json")
 
 
-def check_mqtt_connection(username: str, password: str) -> bool:
+def check_mqtt_connection(username: str, password: str, host: str, port: int) -> bool:
     client = mqtt.Client()
     client.username_pw_set(username, password)
-    client.connect_async(config["mqtt_broker_host"], config["mqtt_broker_port"])
+    client.connect_async(host, port)
     client.loop_start()
+    # sleep!
     time.sleep(0.5)
     state = client.is_connected()
     client.loop_stop()
@@ -56,7 +56,7 @@ def get_mqtt_creds() -> dict:
     username = input("Input MQTT username: ")
     password = getpass("Input MQTT password: ")
 
-    while not check_mqtt_connection(username, password):
+    while not check_mqtt_connection(username, password, host, port):
         print("Connection error! Check your information and try again.\n")
 
         host = input("Input MQTT broker host (form: '0.0.0.0'): ")
@@ -122,6 +122,7 @@ def main() -> dict:
 
     print("\nAutorun command for Autostreaming client app:")
     print(schedule_run_command)
+    print()
 
     resp = {
         "mqtt": mqtt_creds,
@@ -132,7 +133,7 @@ def main() -> dict:
 
 
 def create_config(conf: dict):
-    with open("config.json", "w") as f:
+    with open("config.template", "w") as f:
         json.dump(conf, f)
 
 
@@ -152,9 +153,14 @@ PYTHON_PATH = sys.executable.rstrip("python.exe")
 WORK_DIRECTORY = os.getcwd() + "\\"
 
 if check_configure(WORK_DIRECTORY):
-    with open(WORK_DIRECTORY + "config.json") as f:
+    print("Reading configure...")
+
+    with open(WORK_DIRECTORY + "config.template") as f:
         config = json.load(f)
+
+    print("File was read successfully!")
 else:
+    print("Create configure file...")
     default_conf = {
         "obs_path": "",
         "update_loop_time": 1,
@@ -170,22 +176,25 @@ else:
     }
     create_config(default_conf)
     config = default_conf.copy()
+    print("File was created successfully!")
 
-load_dotenv(WORK_DIRECTORY)
-
+print("Finding obs.exe file...")
 obs_path = get_obs_path()
 
 if obs_path:
+    print("obs.exe file was found!")
     config["obs_path"] = obs_path
 
     creds = main()
     config["mqtt"]["host"] = creds["mqtt"]["host"]
     config["mqtt"]["port"] = creds["mqtt"]["port"]
 
-    config["obsws"]["host"] = creds["obs"]["host"]
-    config["obsws"]["port"] = creds["obs"]["port"]
+    config["obsws"]["host"] = creds["obsws"]["host"]
+    config["obsws"]["port"] = creds["obsws"]["port"]
 
-    create_env_file(creds["mqtt"]["username"], creds["mqtt"]["password"], creds["obs"]["password"])
+    print("Writing information...")
+    create_env_file(creds["mqtt"]["username"], creds["mqtt"]["password"], creds["obsws"]["password"])
     create_config(config)
+    print("Successfully completed!")
 else:
-    exit("obs.exe file not found!")
+    exit("Error: obs.exe file was not found!")
