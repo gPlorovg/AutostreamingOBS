@@ -133,7 +133,7 @@ def main() -> dict:
 
 
 def create_config(conf: dict):
-    with open("config.template", "w") as f:
+    with open("config.json", "w") as f:
         json.dump(conf, f)
 
 
@@ -155,7 +155,7 @@ WORK_DIRECTORY = os.getcwd() + "\\"
 if check_configure(WORK_DIRECTORY):
     print("Reading configure...")
 
-    with open(WORK_DIRECTORY + "config.template") as f:
+    with open(WORK_DIRECTORY + "config.json") as f:
         config = json.load(f)
 
     print("File was read successfully!")
