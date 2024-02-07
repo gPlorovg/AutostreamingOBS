@@ -180,13 +180,13 @@ if check_configure(WORK_DIRECTORY):
         MQTT_BROKER_PORT = config["mqtt_broker_port"]
         MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
         UPDATE_LOOP_TIME = config["update_loop_time"]
+        OBS_NAME = config["obs_name"]
+        STATE_TOPIC = config["state_topic"]
+        PING_TOPIC = config["ping_topic"]
 else:
     log.critical(f"config.json not found. Path to config-file: {WORK_DIRECTORY + 'config.json'}")
     exit("Error: config.json not found")
 
-OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
-STATE_TOPIC = "autostream/obs_state"
-PING_TOPIC = "autostream/ping_sources"
 # check if obs is running before program was started
 obs_pid = get_obs_pid()
 

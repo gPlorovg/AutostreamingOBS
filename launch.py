@@ -164,10 +164,13 @@ else:
     default_conf = {
         "obs_path": "",
         "update_loop_time": 1,
+        "obs_name": "",
         "mqtt": {
             "host": "0.0.0.0",
             "port": 1883,
-            "keep_alive_time": 60
+            "keep_alive_time": 60,
+            "state_topic": "autostream/obs_state",
+            "ping_topic": "autostream/ping_sources"
         },
         "obsws": {
             "host": "0.0.0.0",
@@ -191,6 +194,8 @@ if obs_path:
 
     config["obsws"]["host"] = creds["obsws"]["host"]
     config["obsws"]["port"] = creds["obsws"]["port"]
+
+    config["obs_name"] = creds["obsws"]["host"] + ":" + str(creds["obsws"]["port"])
 
     print("Writing information...")
     create_env_file(creds["mqtt"]["username"], creds["mqtt"]["password"], creds["obsws"]["password"])
