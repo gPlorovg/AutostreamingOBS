@@ -9,9 +9,9 @@ import json
 from dotenv import load_dotenv
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("client")
 log.setLevel(logging.INFO)
-log_handler = logging.FileHandler(f"{__name__}.log")
+log_handler = logging.FileHandler("client.log")
 log_handler.setFormatter(logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s"))
 log.addHandler(log_handler)
 
@@ -59,11 +59,14 @@ def ping_sources(obs_ws: obsws) -> dict:
     resp = dict()
     scenes = obs_ws.call(requests.GetSceneList())
     scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
+
     for scene_name in scenes_names:
-        sources = obs_ws.call(requests.GetSceneItemList(sceneName=scene_name))
-        sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]]
         resp[scene_name] = list()
-        for source_name in sources_names:
+        sources = obs_ws.call(requests.GetSceneItemList(sceneName=scene_name))
+        gstreamer_sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]
+                                   if source["inputKind"] == "gstreamer-source"]
+
+        for source_name in gstreamer_sources_names:
             screenshot = obs_ws.call(requests.GetSourceScreenshot(sourceName=source_name, imageWidth=8, imageHeight=8,
                                                                   imageFormat="png")).datain["imageData"]
             # 146 - length of base64 data string about empty png image
@@ -73,6 +76,7 @@ def ping_sources(obs_ws: obsws) -> dict:
                 "source": source_name,
                 "state": state
             })
+
     obs_ws.disconnect()
     return resp
 
@@ -117,6 +121,7 @@ def on_message(client, userdata, msg):
     # PING_OBS - special command that sign client app to do and send ping data
     if b'PING_OBS' == msg.payload:
         publish_ping(client, msg.topic)
+        log.info("ping published")
     # if json.loads(msg.payload) == "PING_OBS":
     #     publish_ping(client, msg.topic)
 
@@ -167,22 +172,22 @@ MQTT_USERNAME = os.getenv("MQTT_USERNAME")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
 
-if MQTT_USERNAME and MQTT_PASSWORD and OBSWS_PASSWORD:
+if not(MQTT_USERNAME and MQTT_PASSWORD and OBSWS_PASSWORD):
     log.error(f"environment variables are empty. Path to env-file: {WORK_DIRECTORY + '.env'}")
 
 if check_configure(WORK_DIRECTORY):
     with open(WORK_DIRECTORY + "config.json") as f:
         config = json.load(f)
-        OBSWS_HOST = config["obsws_host"]
-        OBSWS_PORT = config["obsws_port"]
+        OBSWS_HOST = config["obsws"]["host"]
+        OBSWS_PORT = config["obsws"]["port"]
         OBS_PATH = config["obs_path"]
-        MQTT_BROKER_HOST = config["mqtt_broker_host"]
-        MQTT_BROKER_PORT = config["mqtt_broker_port"]
-        MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
+        MQTT_BROKER_HOST = config["mqtt"]["host"]
+        MQTT_BROKER_PORT = config["mqtt"]["port"]
+        MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt"]["keep_alive_time"]
         UPDATE_LOOP_TIME = config["update_loop_time"]
         OBS_NAME = config["obs_name"]
-        STATE_TOPIC = config["state_topic"]
-        PING_TOPIC = config["ping_topic"]
+        STATE_TOPIC = config["mqtt"]["state_topic"]
+        PING_TOPIC = config["mqtt"]["ping_topic"]
 else:
     log.critical(f"config.json not found. Path to config-file: {WORK_DIRECTORY + 'config.json'}")
     exit("Error: config.json not found")
@@ -209,10 +214,7 @@ obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
-if not mqtt_client:
-    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
-
-if not mqtt_client:
+if mqtt_client:
     # connect_async to allow background processing
     mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
     mqtt_client.loop_start()
@@ -222,6 +224,7 @@ if not mqtt_client:
         time.sleep(UPDATE_LOOP_TIME)
         obs_state_msg = poll_process(obs_process)
         publish_state(mqtt_client, STATE_TOPIC, obs_state_msg)
+
         if not obs_state_msg["state"]:
             # try restart obs64.exe 3 times
             try_count = 1
@@ -235,5 +238,6 @@ if not mqtt_client:
                 obs_process = start_obs_process()
                 try_count += 1
 else:
+    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
     log.info("obs was killed")
     obs_process.kill()
