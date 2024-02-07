@@ -2,10 +2,18 @@ import subprocess
 import os
 import signal
 import time
+import logging
 import paho.mqtt.client as mqtt
 from obswebsocket import obsws, requests
 import json
 from dotenv import load_dotenv
+
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+log_handler = logging.FileHandler(f"{__name__}.log")
+log_handler.setFormatter(logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s"))
+log.addHandler(log_handler)
 
 
 def check_configure(path: str) -> bool:
@@ -71,7 +79,11 @@ def ping_sources(obs_ws: obsws) -> dict:
 
 # MQTT connection
 def on_connect(client, userdata, flags, rc):
-    # print("Connected with result code "+str(rc))
+    if not rc:
+        log.info(f"mqtt connected to broker with result code {rc}")
+    else:
+        log.error(f"mqtt connected to broker with result code {rc}")
+
     client.subscribe("autostream/ping_sources")
 
 
@@ -85,24 +97,20 @@ def publish_ping(client, topic):
                 }
     }
     '''
-    client.publish(topic, msg)
-    # result = client.publish(topic, msg)
-    # status = result[0]
-    # if not status:
-    #     print(f"Send {msg} to {topic}")
-    # else:
-    #     print(f"Failed to send message to topic {topic}")
+    result = client.publish(topic, msg)
+    status = result[0]
+
+    if status:
+        log.warning(f"Failed to send message to topic {topic}")
 
 
 def publish_state(client, topic, obs_state):
     msg = json.dumps(obs_state)
-    client.publish(topic, msg)
-    # result = client.publish(topic, msg)
-    # status = result[0]
-    # if not status:
-    #     print(f"Send {msg} to {topic}")
-    # else:
-    #     print(f"Failed to send message to topic {topic}")
+    result = client.publish(topic, msg)
+    status = result[0]
+
+    if status:
+        log.warning(f"Failed to send message to topic {topic}")
 
 
 def on_message(client, userdata, msg):
@@ -153,10 +161,14 @@ def poll_process(process: subprocess.Popen) -> dict:
 WORK_DIRECTORY = os.getcwd() + "\\"
 
 load_dotenv(WORK_DIRECTORY + ".env")
+
 # get local variables
 MQTT_USERNAME = os.getenv("MQTT_USERNAME")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
+
+if MQTT_USERNAME and MQTT_PASSWORD and OBSWS_PASSWORD:
+    log.error(f"environment variables are empty. Path to env-file: {WORK_DIRECTORY + '.env'}")
 
 if check_configure(WORK_DIRECTORY):
     with open(WORK_DIRECTORY + "config.json") as f:
@@ -169,6 +181,7 @@ if check_configure(WORK_DIRECTORY):
         MQTT_BROKER_KEEP_ALIVE_TIME = config["mqtt_broker_keep_alive_time"]
         UPDATE_LOOP_TIME = config["update_loop_time"]
 else:
+    log.critical(f"config.json not found. Path to config-file: {WORK_DIRECTORY + 'config.json'}")
     exit("Error: config.json not found")
 
 OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
@@ -179,17 +192,27 @@ obs_pid = get_obs_pid()
 
 if obs_pid is not None:
     kill_process(obs_pid)
+    log.info("obs was killed")
     # sleep!
     time.sleep(2)
 
 # start obs64.exe
 obs_process = start_obs_process()
+
+if not obs_process:
+    log.error("obs process was not created. Path to obs-file: " + OBS_PATH + "\\" + "obs64.exe")
+else:
+    log.info("obs was started")
+
 # create obs websockets object
 obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
-if mqtt_client is not None:
+if not mqtt_client:
+    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
+
+if not mqtt_client:
     # connect_async to allow background processing
     mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
     mqtt_client.loop_start()
@@ -201,13 +224,16 @@ if mqtt_client is not None:
         publish_state(mqtt_client, STATE_TOPIC, obs_state_msg)
         if not obs_state_msg["state"]:
             # try restart obs64.exe 3 times
-            try_count = 0
+            try_count = 1
+            log.info("obs restarting")
             obs_process = start_obs_process()
 
-            while obs_process is None and try_count < 3:
+            while obs_process is None and try_count <= 3:
                 # sleep !
                 time.sleep(1)
+                log.error(f"obs failed to restart. try: {try_count}")
                 obs_process = start_obs_process()
                 try_count += 1
 else:
+    log.info("obs was killed")
     obs_process.kill()
