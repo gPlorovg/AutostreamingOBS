@@ -1,13 +1,15 @@
 ~~ табели по задачам! ~~
 
+добавить логгирование в client
+переписать readme
+перенести имена тем в config
 
-+1 поставить на компы в 505
+убрать лишние источники
+Добавить предложение ввода имени для обс
 
-добавить таймаут на закрытие и открытие obs
-
-/f через бота смотреть скрин обс
+! PING_OBS сообщение не через json, а через b'PING_OBS'
 /f удалённое включение пк
-
+проблема нескольких обс
 {
 Bad: 146
 data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAD0lEQVQYlWNgGAUMDAwMAAEIAAF9QaXOAAAAAElFTkSuQmCC

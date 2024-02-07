@@ -65,7 +65,6 @@ def ping_sources(obs_ws: obsws) -> dict:
                 "source": source_name,
                 "state": state
             })
-
     obs_ws.disconnect()
     return resp
 
@@ -78,6 +77,14 @@ def on_connect(client, userdata, flags, rc):
 
 def publish_ping(client, topic):
     msg = json.dumps({OBS_NAME: ping_sources(obs_websockets)})
+    '''
+    {OBS_NAME: {
+                scene_name: [ {"source": source_name, "state": True}, {"source": source_name2, "state": False}, {}],
+                scene_name2: [ {}, {}, {}],
+                ...
+                }
+    }
+    '''
     client.publish(topic, msg)
     # result = client.publish(topic, msg)
     # status = result[0]
@@ -133,7 +140,7 @@ def create_mqtt_client(username: str, password: str, host: str, port: int) -> mq
 
 def poll_process(process: subprocess.Popen) -> dict:
     poll = process.poll()
-    time_stamp = time.time()
+    time_stamp = time.strftime("%Y.%m.%d %H:%M:%S")
     state = poll is None
     msg = {
         "name": OBS_NAME,
