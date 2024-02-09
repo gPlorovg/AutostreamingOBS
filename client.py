@@ -4,7 +4,8 @@ import signal
 import time
 import logging
 import paho.mqtt.client as mqtt
-from obswebsocket import obsws, requests
+import simpleobsws
+import asyncio
 import json
 from dotenv import load_dotenv
 
@@ -54,21 +55,43 @@ def start_obs_process() -> subprocess.Popen or None:
     return obs_process
 
 
-def ping_sources(obs_ws: obsws) -> dict:
-    obs_ws.connect()
+async def ping_sources(obs_ws: simpleobsws.WebSocketClient) -> dict:
     resp = dict()
-    scenes = obs_ws.call(requests.GetSceneList())
-    scenes_names = [scene["sceneName"] for scene in scenes.datain["scenes"]]
+    await obs_ws.connect()
+    await obs_ws.wait_until_identified()
+
+    ret = await obs_ws.call(simpleobsws.Request("GetSceneList"))
+
+    if not ret.ok():
+        log.error("obs websockets: can't GetSceneList")
+        return resp
+
+    scenes = ret.responseData
+    scenes_names = [scene["sceneName"] for scene in scenes["scenes"]]
 
     for scene_name in scenes_names:
         resp[scene_name] = list()
-        sources = obs_ws.call(requests.GetSceneItemList(sceneName=scene_name))
-        gstreamer_sources_names = [source["sourceName"] for source in sources.datain["sceneItems"]
+        ret = await obs_ws.call(simpleobsws.Request("GetSceneItemList", requestData={'sceneName': scene_name}))
+
+        if not ret.ok():
+            log.error("obs websockets: can't GetSceneItemList for Scene: " + scene_name)
+            continue
+
+        sources = ret.responseData
+        gstreamer_sources_names = [source["sourceName"] for source in sources["sceneItems"]
                                    if source["inputKind"] == "gstreamer-source"]
 
         for source_name in gstreamer_sources_names:
-            screenshot = obs_ws.call(requests.GetSourceScreenshot(sourceName=source_name, imageWidth=8, imageHeight=8,
-                                                                  imageFormat="png")).datain["imageData"]
+            screen_req = simpleobsws.Request("GetSourceScreenshot", requestData={
+                "sourceName": source_name, "imageWidth": 8, "imageHeight": 8, "imageFormat": "png"
+            })
+            ret = await obs_ws.call(screen_req)
+
+            if not ret.ok():
+                log.error("obs websockets: can't GetSourceScreenshot for Source: " + source_name)
+                continue
+
+            screenshot = ret.responseData["imageData"]
             # 146 - length of base64 data string about empty png image
             state = False if len(screenshot) == 146 else True
 
@@ -77,7 +100,7 @@ def ping_sources(obs_ws: obsws) -> dict:
                 "state": state
             })
 
-    obs_ws.disconnect()
+    await obs_ws.disconnect()
     return resp
 
 
@@ -92,7 +115,9 @@ def on_connect(client, userdata, flags, rc):
 
 
 def publish_ping(client, topic):
-    msg = json.dumps({OBS_NAME: ping_sources(obs_websockets)})
+    loop = asyncio.new_event_loop()
+    ping = loop.run_until_complete(ping_sources(obs_ws_client))
+    msg = json.dumps({OBS_NAME: ping})
     '''
     {OBS_NAME: {
                 scene_name: [ {"source": source_name, "state": True}, {"source": source_name2, "state": False}, {}],
@@ -119,6 +144,7 @@ def publish_state(client, topic, obs_state):
 
 def on_message(client, userdata, msg):
     # PING_OBS - special command that sign client app to do and send ping data
+    # if msg.payload == OBS_NAME:
     if b'PING_OBS' == msg.payload:
         publish_ping(client, msg.topic)
         log.info("ping published")
@@ -210,7 +236,10 @@ else:
     log.info("obs was started")
 
 # create obs websockets object
-obs_websockets = obsws(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
+parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
+obs_ws_client = simpleobsws.WebSocketClient(url='ws://' + OBS_NAME, password=OBSWS_PASSWORD,
+                                            identification_parameters=parameters)
+
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 

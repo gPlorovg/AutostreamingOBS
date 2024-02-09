@@ -4,7 +4,8 @@ import os
 import time
 from getpass import getpass
 import paho.mqtt.client as mqtt
-from obswebsocket import obsws, exceptions
+import simpleobsws
+import asyncio
 
 
 def check_configure(path: str) -> bool:
@@ -27,14 +28,20 @@ def check_mqtt_connection(username: str, password: str, host: str, port: int) ->
     return state
 
 
-def check_obsws_connection(host: str, port: int, password: str) -> bool:
-    obs = obsws(host, port, password)
-    try:
-        obs.connect()
-    except exceptions.ConnectionFailure:
-        return False
-    else:
+async def check_obsws_connection(host: str, port: int, password: str) -> bool:
+    parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
+    ws = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
+                                     identification_parameters=parameters)
+    await ws.connect()
+    await ws.wait_until_identified()
+
+    ret = await ws.call(simpleobsws.Request("GetVersion"))
+    await ws.disconnect()
+
+    if ret.ok():
         return True
+    else:
+        return False
 
 
 def create_env_file(mqtt_username: str, mqtt_password: str, obsws_password: str):
@@ -92,7 +99,9 @@ def get_obsws_creds() -> dict:
 
     password = getpass("Input OBS websocket password:")
 
-    while not check_obsws_connection(host, port, password):
+    loop = asyncio.new_event_loop()
+
+    while not loop.run_until_complete(check_obsws_connection(host, port, password)):
         print("Connection error! Check your information and try again.\n")
         host = input("Input OBS websocket host:")
         port = input("Input OBS websocket port:")
