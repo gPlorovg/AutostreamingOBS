@@ -3,18 +3,37 @@ import os
 import signal
 import time
 import logging
-import paho.mqtt.client as mqtt
-import simpleobsws
+import socket
 import asyncio
 import json
+import paho.mqtt.client as mqtt
+import simpleobsws
 from dotenv import load_dotenv
 
+
+global OBSWS_HOST, OBSWS_PORT, OBS_PATH, MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME, \
+    UPDATE_LOOP_TIME, OBS_NAME, STATE_TOPIC, PING_TOPIC
+global MQTT_USERNAME, MQTT_PASSWORD, OBSWS_PASSWORD
+
+WORK_DIRECTORY = os.getcwd() + "\\"
 
 log = logging.getLogger("client")
 log.setLevel(logging.INFO)
 log_handler = logging.FileHandler("client.log")
 log_handler.setFormatter(logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s"))
 log.addHandler(log_handler)
+
+
+def async_loop(func):
+    def wrapper(*args, **kwargs):
+        loop = asyncio.new_event_loop()
+        resp = loop.run_until_complete(func(*args, **kwargs))
+        return resp
+    return wrapper
+
+
+def get_curr_ip() -> str:
+    return socket.gethostbyname(socket.gethostname())
 
 
 def check_configure(path: str) -> bool:
@@ -54,13 +73,15 @@ def start_obs_process() -> subprocess.Popen or None:
 
     return obs_process
 
+@async_loop
+async def ping_sources() -> dict:
+    global obsws
 
-async def ping_sources(obs_ws: simpleobsws.WebSocketClient) -> dict:
     resp = dict()
-    await obs_ws.connect()
-    await obs_ws.wait_until_identified()
+    await obsws.connect()
+    await obsws.wait_until_identified()
 
-    ret = await obs_ws.call(simpleobsws.Request("GetSceneList"))
+    ret = await obsws.call(simpleobsws.Request("GetSceneList"))
 
     if not ret.ok():
         log.error("obs websockets: can't GetSceneList")
@@ -71,7 +92,7 @@ async def ping_sources(obs_ws: simpleobsws.WebSocketClient) -> dict:
 
     for scene_name in scenes_names:
         resp[scene_name] = list()
-        ret = await obs_ws.call(simpleobsws.Request("GetSceneItemList", requestData={'sceneName': scene_name}))
+        ret = await obsws.call(simpleobsws.Request("GetSceneItemList", requestData={'sceneName': scene_name}))
 
         if not ret.ok():
             log.error("obs websockets: can't GetSceneItemList for Scene: " + scene_name)
@@ -85,7 +106,7 @@ async def ping_sources(obs_ws: simpleobsws.WebSocketClient) -> dict:
             screen_req = simpleobsws.Request("GetSourceScreenshot", requestData={
                 "sourceName": source_name, "imageWidth": 8, "imageHeight": 8, "imageFormat": "png"
             })
-            ret = await obs_ws.call(screen_req)
+            ret = await obsws.call(screen_req)
 
             if not ret.ok():
                 log.error("obs websockets: can't GetSourceScreenshot for Source: " + source_name)
@@ -100,7 +121,7 @@ async def ping_sources(obs_ws: simpleobsws.WebSocketClient) -> dict:
                 "state": state
             })
 
-    await obs_ws.disconnect()
+    await obsws.disconnect()
     return resp
 
 
@@ -114,9 +135,93 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("autostream/ping_sources")
 
 
+@async_loop
+def check_obsws_connection(host: str = "", port: int = 0, password: str = "",
+                                 obsws: simpleobsws.WebSocketClient = None) -> bool:
+    if obsws is not None:
+        ws = obsws
+    else:
+        parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
+        ws = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
+                                         identification_parameters=parameters)
+
+    await ws.connect()
+    await ws.wait_until_identified()
+
+    ret = await ws.call(simpleobsws.Request("GetVersion"))
+    await ws.disconnect()
+
+    if ret.ok():
+        return True
+    else:
+        return False
+
+
+def new_obsws_client(host: str, port: int, password: str) -> simpleobsws.WebSocketClient:
+    parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
+    obs_ws_client = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
+                                                identification_parameters=parameters)
+    return obs_ws_client
+
+
+def change_obsws_creds(host: str, port: int, password: str):
+    global OBSWS_HOST
+    global OBSWS_PORT
+    global OBSWS_PASSWORD
+    global OBS_NAME
+    global obsws
+
+    OBSWS_HOST = host
+    OBSWS_PORT = port
+    OBSWS_PASSWORD = password
+    OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
+    obsws = check_obsws_connection(host, port, password)
+
+
+def save_configure():
+    config = dict()
+    config["obsws"]["host"] = OBSWS_HOST
+    config["obsws"]["port"] = OBSWS_PORT
+    config["obs_path"] = OBS_PATH
+    config["mqtt"]["host"] = MQTT_BROKER_HOST
+    config["mqtt"]["port"] = MQTT_BROKER_PORT
+    config["mqtt"]["keep_alive_time"] = MQTT_BROKER_KEEP_ALIVE_TIME
+    config["update_loop_time"] = UPDATE_LOOP_TIME
+    config["obs_name"] = OBS_NAME
+    config["mqtt"]["state_topic"] = STATE_TOPIC
+    config["mqtt"]["ping_topic"] = PING_TOPIC
+
+    with open("config.json", "w") as f:
+        json.dump(config, f)
+
+
+def save_env():
+    with open(".env", "w") as f:
+        f.write("MQTT_USERNAME=" + MQTT_USERNAME + "\n")
+        f.write("MQTT_PASSWORD=" + MQTT_PASSWORD + "\n")
+        f.write("OBSWS_PASSWORD=" + OBSWS_PASSWORD + "\n")
+
+
+def check_router_reboot():
+    if not check_obsws_connection(obsws=obsws):
+        curr_ip = get_curr_ip()
+
+        if curr_ip != OBSWS_HOST:
+            log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
+
+        if check_obsws_connection(curr_ip, OBSWS_PORT, OBSWS_PASSWORD):
+            change_obsws_creds(curr_ip, OBSWS_PORT, OBSWS_PASSWORD)
+            save_configure()
+        else:
+            log.critical(f"obs credentials were changed. can not connect to obs websockets with host:"
+                         f" {OBSWS_HOST}:{OBSWS_PORT}")
+            complete_program()
+
+
 def publish_ping(client, topic):
-    loop = asyncio.new_event_loop()
-    ping = loop.run_until_complete(ping_sources(obs_ws_client))
+    check_router_reboot()
+
+    ping = ping_sources()
     msg = json.dumps({OBS_NAME: ping})
     '''
     {OBS_NAME: {
@@ -177,6 +282,12 @@ def create_mqtt_client(username: str, password: str, host: str, port: int) -> mq
     return None
 
 
+def complete_program():
+    obs_process.kill()
+    log.info("obs was killed")
+    log.critical("program completed")
+
+
 def poll_process(process: subprocess.Popen) -> dict:
     poll = process.poll()
     time_stamp = time.strftime("%Y.%m.%d %H:%M:%S")
@@ -189,19 +300,10 @@ def poll_process(process: subprocess.Popen) -> dict:
     return msg
 
 
-WORK_DIRECTORY = os.getcwd() + "\\"
+def read_configure():
+    global OBSWS_HOST, OBSWS_PORT, OBS_PATH, MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME, \
+        UPDATE_LOOP_TIME, OBS_NAME, STATE_TOPIC, PING_TOPIC
 
-load_dotenv(WORK_DIRECTORY + ".env")
-
-# get local variables
-MQTT_USERNAME = os.getenv("MQTT_USERNAME")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
-OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
-
-if not(MQTT_USERNAME and MQTT_PASSWORD and OBSWS_PASSWORD):
-    log.error(f"environment variables are empty. Path to env-file: {WORK_DIRECTORY + '.env'}")
-
-if check_configure(WORK_DIRECTORY):
     with open(WORK_DIRECTORY + "config.json") as f:
         config = json.load(f)
         OBSWS_HOST = config["obsws"]["host"]
@@ -214,6 +316,25 @@ if check_configure(WORK_DIRECTORY):
         OBS_NAME = config["obs_name"]
         STATE_TOPIC = config["mqtt"]["state_topic"]
         PING_TOPIC = config["mqtt"]["ping_topic"]
+
+
+def read_env():
+    global MQTT_USERNAME, MQTT_PASSWORD, OBSWS_PASSWORD
+
+    MQTT_USERNAME = os.getenv("MQTT_USERNAME")
+    MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+    OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
+
+
+# get local variables
+load_dotenv(WORK_DIRECTORY + ".env")
+read_env()
+
+if not(MQTT_USERNAME and MQTT_PASSWORD and OBSWS_PASSWORD):
+    log.error(f"environment variables are empty. Path to env-file: {WORK_DIRECTORY + '.env'}")
+
+if check_configure(WORK_DIRECTORY):
+    read_configure()
 else:
     log.critical(f"config.json not found. Path to config-file: {WORK_DIRECTORY + 'config.json'}")
     exit("Error: config.json not found")
@@ -235,15 +356,20 @@ if not obs_process:
 else:
     log.info("obs was started")
 
-# create obs websockets object
-parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
-obs_ws_client = simpleobsws.WebSocketClient(url='ws://' + OBS_NAME, password=OBSWS_PASSWORD,
-                                            identification_parameters=parameters)
+# create obs websockets client
+if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
+    log.error(f"obs websocket connection was not establish with host: {OBSWS_HOST}:{OBSWS_PORT}")
+    obsws = None
+else:
+    obsws = new_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
-if mqtt_client:
+if mqtt_client is None:
+    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
+
+if mqtt_client and obsws:
     # connect_async to allow background processing
     mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
     mqtt_client.loop_start()
@@ -266,7 +392,5 @@ if mqtt_client:
                 log.error(f"obs failed to restart. try: {try_count}")
                 obs_process = start_obs_process()
                 try_count += 1
-else:
-    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
-    log.info("obs was killed")
-    obs_process.kill()
+
+complete_program()
