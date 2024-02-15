@@ -3,12 +3,12 @@ import json
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import paho.mqtt.client as mqtt
-import time
+
 
 # MQTT broker configuration
 MQTT_BROKER_HOST = "172.18.130.40"
 MQTT_BROKER_PORT = 1883
-MQTT_TOPIC = "autostream/ping_sources"
+MQTT_TOPIC = "autostream/obsws_request"
 RESPONSE = None
 REQ_ID = ""
 

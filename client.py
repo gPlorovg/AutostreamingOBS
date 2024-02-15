@@ -73,6 +73,7 @@ def start_obs_process() -> subprocess.Popen or None:
 
     return obs_process
 
+
 @async_loop
 async def ping_sources() -> dict:
     global obsws
@@ -85,6 +86,7 @@ async def ping_sources() -> dict:
 
     if not ret.ok():
         log.error("obs websockets: can't GetSceneList")
+        await obsws.disconnect()
         return resp
 
     scenes = ret.responseData
@@ -125,20 +127,10 @@ async def ping_sources() -> dict:
     return resp
 
 
-# MQTT connection
-def on_connect(client, userdata, flags, rc):
-    if not rc:
-        log.info(f"mqtt connected to broker with result code {rc}")
-    else:
-        log.error(f"mqtt connected to broker with result code {rc}")
-
-    client.subscribe("autostream/ping_sources")
-
-
 @async_loop
-def check_obsws_connection(host: str = "", port: int = 0, password: str = "",
+async def check_obsws_connection(host: str = "", port: int = 0, password: str = "",
                                  obsws: simpleobsws.WebSocketClient = None) -> bool:
-    if obsws is not None:
+    if obsws:
         ws = obsws
     else:
         parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
@@ -147,7 +139,6 @@ def check_obsws_connection(host: str = "", port: int = 0, password: str = "",
 
     await ws.connect()
     await ws.wait_until_identified()
-
     ret = await ws.call(simpleobsws.Request("GetVersion"))
     await ws.disconnect()
 
@@ -206,55 +197,15 @@ def check_router_reboot():
     if not check_obsws_connection(obsws=obsws):
         curr_ip = get_curr_ip()
 
-        if curr_ip != OBSWS_HOST:
-            log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
-
-        if check_obsws_connection(curr_ip, OBSWS_PORT, OBSWS_PASSWORD):
+        if curr_ip != OBSWS_HOST and check_obsws_connection(curr_ip, OBSWS_PORT, OBSWS_PASSWORD):
             change_obsws_creds(curr_ip, OBSWS_PORT, OBSWS_PASSWORD)
             save_configure()
+            log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
+            # дёргать ручку МУ
         else:
             log.critical(f"obs credentials were changed. can not connect to obs websockets with host:"
                          f" {OBSWS_HOST}:{OBSWS_PORT}")
             complete_program()
-
-
-def publish_ping(client, topic):
-    check_router_reboot()
-
-    ping = ping_sources()
-    msg = json.dumps({OBS_NAME: ping})
-    '''
-    {OBS_NAME: {
-                scene_name: [ {"source": source_name, "state": True}, {"source": source_name2, "state": False}, {}],
-                scene_name2: [ {}, {}, {}],
-                ...
-                }
-    }
-    '''
-    result = client.publish(topic, msg)
-    status = result[0]
-
-    if status:
-        log.warning(f"Failed to send message to topic {topic}")
-
-
-def publish_state(client, topic, obs_state):
-    msg = json.dumps(obs_state)
-    result = client.publish(topic, msg)
-    status = result[0]
-
-    if status:
-        log.warning(f"Failed to send message to topic {topic}")
-
-
-def on_message(client, userdata, msg):
-    # PING_OBS - special command that sign client app to do and send ping data
-    # if msg.payload == OBS_NAME:
-    if b'PING_OBS' == msg.payload:
-        publish_ping(client, msg.topic)
-        log.info("ping published")
-    # if json.loads(msg.payload) == "PING_OBS":
-    #     publish_ping(client, msg.topic)
 
 
 def create_mqtt_client(username: str, password: str, host: str, port: int) -> mqtt.Client or None:
@@ -326,6 +277,88 @@ def read_env():
     OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
 
 
+@async_loop
+async def run_obsws_request(req: str, data: dict) -> dict:
+    global obsws
+
+    await obsws.connect()
+    await obsws.wait_until_identified()
+
+    ret = await obsws.call(simpleobsws.Request(req, data))
+
+    if not ret.ok():
+        log.error(f"obs websockets: failed on remote command:{req}\nwith data:{data}")
+
+    await obsws.disconnect()
+    return ret.responseData
+
+
+# MQTT connection
+def on_connect(client, userdata, flags, rc):
+    if not rc:
+        log.info(f"mqtt connected to broker with result code {rc}")
+    else:
+        log.error(f"mqtt connected to broker with result code {rc}")
+
+    client.subscribe("autostream/#")
+
+
+def publish_ping(client, topic):
+    check_router_reboot()
+
+    ping = ping_sources()
+    msg = json.dumps({OBS_NAME: ping})
+    '''
+    {OBS_NAME: {
+                scene_name: [ {"source": source_name, "state": True}, {"source": source_name2, "state": False}, {}],
+                scene_name2: [ {}, {}, {}],
+                ...
+                }
+    }
+    '''
+    result = client.publish(topic, msg)
+    status = result[0]
+
+    if status:
+        log.warning(f"Failed to send message to topic {topic}")
+    else:
+        log.info("ping published")
+
+
+def publish_state(client, topic, obs_state):
+    msg = json.dumps(obs_state)
+    result = client.publish(topic, msg)
+    status = result[0]
+
+    if status:
+        log.warning(f"Failed to send message to topic {topic}")
+
+
+def publish_ws(client, topic, data):
+    msg = json.dumps(data)
+    result = client.publish(topic, msg)
+    status = result[0]
+
+    if status:
+        log.warning(f"Failed to send message to topic {topic}")
+    else:
+        log.info(f"obs websocket response for request {data['resp_id']} published")
+
+
+def on_message(client, userdata, msg):
+    # PING_OBS - special command that sign client app to do and send ping data
+    # if msg.payload == OBS_NAME:
+    req = json.loads(msg.payload)
+    if req == "PING_OBS":
+        publish_ping(client, msg.topic)
+    elif "req_id" in req:
+        resp = {
+            "resp_id": req["req_id"],
+            "response": run_obsws_request(req["request"], req["data"])
+        }
+        publish_ws(client, msg.topic, resp)
+
+
 # get local variables
 load_dotenv(WORK_DIRECTORY + ".env")
 read_env()
@@ -351,11 +384,14 @@ if obs_pid is not None:
 # start obs64.exe
 obs_process = start_obs_process()
 
+
 if not obs_process:
     log.error("obs process was not created. Path to obs-file: " + OBS_PATH + "\\" + "obs64.exe")
 else:
     log.info("obs was started")
 
+# sleep!
+time.sleep(1)
 # create obs websockets client
 if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
     log.error(f"obs websocket connection was not establish with host: {OBSWS_HOST}:{OBSWS_PORT}")
