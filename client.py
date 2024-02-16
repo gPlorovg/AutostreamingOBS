@@ -214,9 +214,15 @@ def check_router_reboot():
         curr_ip = get_curr_ip()
 
         if curr_ip != OBSWS_HOST and check_obsws_connection(curr_ip, OBSWS_PORT, OBSWS_PASSWORD):
+            log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
+            # resp = {
+            #     "name": OBS_NAME,
+            #     "old_ip": OBSWS_HOST,
+            #     "port": OBSWS_PORT,
+            #     "new_ip": curr_ip
+            # }
             change_obsws_creds(curr_ip, OBSWS_PORT, OBSWS_PASSWORD)
             save_configure()
-            log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
             # дёргать ручку МУ
         else:
             log.critical(f"obs credentials were changed. Failed connection to obs websockets with host:"
@@ -391,7 +397,8 @@ else:
     log.info("obs was started")
 
 # sleep!
-time.sleep(1)
+while obs_process.poll() is not None:
+    time.sleep(0.2)
 # create obs websockets client
 if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
     log.error(f"obs websocket connection failed with host: {OBSWS_HOST}:{OBSWS_PORT}")
