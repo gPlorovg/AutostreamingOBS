@@ -85,7 +85,7 @@ async def ping_sources() -> dict:
     ret = await obsws.call(simpleobsws.Request("GetSceneList"))
 
     if not ret.ok():
-        log.error("obs websockets: can't GetSceneList")
+        log.error("obs websockets: failed GetSceneList")
         await obsws.disconnect()
         return resp
 
@@ -97,7 +97,7 @@ async def ping_sources() -> dict:
         ret = await obsws.call(simpleobsws.Request("GetSceneItemList", requestData={'sceneName': scene_name}))
 
         if not ret.ok():
-            log.error("obs websockets: can't GetSceneItemList for Scene: " + scene_name)
+            log.error("obs websockets: failed GetSceneItemList for Scene: " + scene_name)
             continue
 
         sources = ret.responseData
@@ -111,7 +111,7 @@ async def ping_sources() -> dict:
             ret = await obsws.call(screen_req)
 
             if not ret.ok():
-                log.error("obs websockets: can't GetSourceScreenshot for Source: " + source_name)
+                log.error("obs websockets: failed GetSourceScreenshot for Source: " + source_name)
                 continue
 
             screenshot = ret.responseData["imageData"]
@@ -146,6 +146,22 @@ async def check_obsws_connection(host: str = "", port: int = 0, password: str = 
         return True
     else:
         return False
+
+
+@async_loop
+async def run_obsws_request(req: str, data: dict) -> dict:
+    global obsws
+
+    await obsws.connect()
+    await obsws.wait_until_identified()
+
+    ret = await obsws.call(simpleobsws.Request(req, data))
+
+    if not ret.ok():
+        log.error(f"obs websockets: failed on remote command:{req}\nwith data:{data}")
+
+    await obsws.disconnect()
+    return ret.responseData
 
 
 def new_obsws_client(host: str, port: int, password: str) -> simpleobsws.WebSocketClient:
@@ -203,7 +219,7 @@ def check_router_reboot():
             log.warning(f"obs if was changed from {OBSWS_HOST} to {curr_ip}")
             # дёргать ручку МУ
         else:
-            log.critical(f"obs credentials were changed. can not connect to obs websockets with host:"
+            log.critical(f"obs credentials were changed. Failed connection to obs websockets with host:"
                          f" {OBSWS_HOST}:{OBSWS_PORT}")
             complete_program()
 
@@ -275,22 +291,6 @@ def read_env():
     MQTT_USERNAME = os.getenv("MQTT_USERNAME")
     MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
     OBSWS_PASSWORD = os.getenv("OBSWS_PASSWORD")
-
-
-@async_loop
-async def run_obsws_request(req: str, data: dict) -> dict:
-    global obsws
-
-    await obsws.connect()
-    await obsws.wait_until_identified()
-
-    ret = await obsws.call(simpleobsws.Request(req, data))
-
-    if not ret.ok():
-        log.error(f"obs websockets: failed on remote command:{req}\nwith data:{data}")
-
-    await obsws.disconnect()
-    return ret.responseData
 
 
 # MQTT connection
@@ -394,7 +394,7 @@ else:
 time.sleep(1)
 # create obs websockets client
 if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
-    log.error(f"obs websocket connection was not establish with host: {OBSWS_HOST}:{OBSWS_PORT}")
+    log.error(f"obs websocket connection failed with host: {OBSWS_HOST}:{OBSWS_PORT}")
     obsws = None
 else:
     obsws = new_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
@@ -403,7 +403,7 @@ else:
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
 if mqtt_client is None:
-    log.critical(f"Mqtt connection was not established.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
+    log.critical(f"Mqtt connection failed.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
 
 if mqtt_client and obsws:
     # connect_async to allow background processing
