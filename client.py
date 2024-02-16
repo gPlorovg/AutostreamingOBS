@@ -136,8 +136,10 @@ async def check_obsws_connection(host: str = "", port: int = 0, password: str = 
         parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
         ws = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
                                          identification_parameters=parameters)
-
-    await ws.connect()
+    try:
+        await ws.connect()
+    except ConnectionRefusedError:
+        return False
     await ws.wait_until_identified()
     ret = await ws.call(simpleobsws.Request("GetVersion"))
     await ws.disconnect()
@@ -355,13 +357,13 @@ def on_message(client, userdata, msg):
     # PING_OBS - special command that sign client app to do and send ping data
     # if msg.payload == OBS_NAME:
     req = json.loads(msg.payload)
+    print(req)
     if req == "PING_OBS":
         publish_ping(client, msg.topic)
     elif "req_id" in req:
-        resp = {
-            "resp_id": req["req_id"],
-            "response": run_obsws_request(req["request"], req["data"])
-        }
+        resp = dict()
+        resp["resp_id"] = req["req_id"]
+        resp["response"] = run_obsws_request(req["request"], req["data"])
         publish_ws(client, msg.topic, resp)
 
 
@@ -396,15 +398,15 @@ if not obs_process:
 else:
     log.info("obs was started")
 
-# sleep!
-while obs_process.poll() is not None:
-    time.sleep(0.2)
 # create obs websockets client
-if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
+count = 0
+
+while not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD) and count < 5:
     log.error(f"obs websocket connection failed with host: {OBSWS_HOST}:{OBSWS_PORT}")
-    obsws = None
-else:
-    obsws = new_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
+    # sleep!
+    time.sleep(2)
+
+obsws = new_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
@@ -412,7 +414,7 @@ mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST,
 if mqtt_client is None:
     log.critical(f"Mqtt connection failed.\nMqtt broker: {MQTT_BROKER_HOST}:{MQTT_BROKER_PORT}")
 
-if mqtt_client and obsws:
+if mqtt_client:
     # connect_async to allow background processing
     mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_BROKER_KEEP_ALIVE_TIME)
     mqtt_client.loop_start()
