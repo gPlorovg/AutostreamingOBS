@@ -15,6 +15,7 @@ global OBSWS_HOST, OBSWS_PORT, OBS_PATH, MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQT
     UPDATE_LOOP_TIME, OBS_NAME, STATE_TOPIC, PING_TOPIC
 global MQTT_USERNAME, MQTT_PASSWORD, OBSWS_PASSWORD
 
+
 WORK_DIRECTORY = os.getcwd() + "\\"
 
 log = logging.getLogger("client")
@@ -76,7 +77,7 @@ def start_obs_process() -> subprocess.Popen or None:
 
 @async_loop
 async def ping_sources() -> dict:
-    global obsws
+    obsws = create_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 
     resp = dict()
     await obsws.connect()
@@ -133,9 +134,7 @@ async def check_obsws_connection(host: str = "", port: int = 0, password: str = 
     if obsws:
         ws = obsws
     else:
-        parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
-        ws = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
-                                         identification_parameters=parameters)
+        ws = create_obsws_client(host, port, password)
     try:
         await ws.connect()
     except ConnectionRefusedError:
@@ -152,8 +151,7 @@ async def check_obsws_connection(host: str = "", port: int = 0, password: str = 
 
 @async_loop
 async def run_obsws_request(req: str, data: dict) -> dict:
-    global obsws
-
+    obsws = create_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
     await obsws.connect()
     await obsws.wait_until_identified()
 
@@ -163,10 +161,11 @@ async def run_obsws_request(req: str, data: dict) -> dict:
         log.error(f"obs websockets: failed on remote command:{req}\nwith data:{data}")
 
     await obsws.disconnect()
+
     return ret.responseData
 
 
-def new_obsws_client(host: str, port: int, password: str) -> simpleobsws.WebSocketClient:
+def create_obsws_client(host: str, port: int, password: str) -> simpleobsws.WebSocketClient:
     parameters = simpleobsws.IdentificationParameters(ignoreNonFatalRequestChecks=False)
     obs_ws_client = simpleobsws.WebSocketClient(url=f'ws://{host}:{port}', password=password,
                                                 identification_parameters=parameters)
@@ -178,13 +177,11 @@ def change_obsws_creds(host: str, port: int, password: str):
     global OBSWS_PORT
     global OBSWS_PASSWORD
     global OBS_NAME
-    global obsws
 
     OBSWS_HOST = host
     OBSWS_PORT = port
     OBSWS_PASSWORD = password
     OBS_NAME = OBSWS_HOST + ":" + str(OBSWS_PORT)
-    obsws = check_obsws_connection(host, port, password)
 
 
 def save_configure():
@@ -212,7 +209,7 @@ def save_env():
 
 
 def check_router_reboot():
-    if not check_obsws_connection(obsws=obsws):
+    if not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD):
         curr_ip = get_curr_ip()
 
         if curr_ip != OBSWS_HOST and check_obsws_connection(curr_ip, OBSWS_PORT, OBSWS_PASSWORD):
@@ -357,13 +354,13 @@ def on_message(client, userdata, msg):
     # PING_OBS - special command that sign client app to do and send ping data
     # if msg.payload == OBS_NAME:
     req = json.loads(msg.payload)
-    print(req)
     if req == "PING_OBS":
         publish_ping(client, msg.topic)
-    elif "req_id" in req:
-        resp = dict()
-        resp["resp_id"] = req["req_id"]
-        resp["response"] = run_obsws_request(req["request"], req["data"])
+    elif "req_id" in req and req["obs_name"] == OBS_NAME:
+        resp = {
+            "resp_id": req["req_id"],
+            "response": run_obsws_request(req["request"], req["data"])
+        }
         publish_ws(client, msg.topic, resp)
 
 
@@ -405,8 +402,6 @@ while not check_obsws_connection(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD) and cou
     log.error(f"obs websocket connection failed with host: {OBSWS_HOST}:{OBSWS_PORT}")
     # sleep!
     time.sleep(2)
-
-obsws = new_obsws_client(OBSWS_HOST, OBSWS_PORT, OBSWS_PASSWORD)
 
 # create mqtt_client
 mqtt_client = create_mqtt_client(MQTT_USERNAME, MQTT_PASSWORD, MQTT_BROKER_HOST, MQTT_BROKER_PORT)
