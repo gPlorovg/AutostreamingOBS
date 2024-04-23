@@ -21,6 +21,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
+
     requests.post("http://127.0.0.1:8000/client_state", data=msg.payload)
 
 

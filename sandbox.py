@@ -11,6 +11,8 @@ MQTT_BROKER_PORT = 1883
 MQTT_TOPIC = "autostream/obsws_request"
 RESPONSE = None
 REQ_ID = ""
+OBS_NAME = "localhost:4455"
+global_lock = asyncio.Lock()
 
 # Define MQTT client
 mqtt_client = mqtt.Client()
@@ -18,6 +20,11 @@ mqtt_client.username_pw_set("recorder", "recorder2020")
 
 app = FastAPI()
 test = TestClient(app)
+
+
+# async def _wait_for_cond(cond, func):
+#     async with cond:
+#         await cond.wait_for(func)
 
 
 # Define callback functions
@@ -53,31 +60,34 @@ mqtt_client.on_message = on_message
 mqtt_client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
 
 
-@app.get("/")
-async def read_root():
-    print("HERE")
+@app.get("/obsws_request")
+async def run_obsws_request():
     global RESPONSE, REQ_ID
 
-    OBS_NAME = "localhost:4455"
+    mqtt_client.loop_start()
+    await asyncio.sleep(0.5)
+    await global_lock.acquire()
+    RESPONSE = None
     REQ_ID = hash(OBS_NAME)
-
     req = {
         "req_id": REQ_ID,
         "obs_name": OBS_NAME,
         "request": "GetVersion",
         "data": None
     }
-    RESPONSE = None
 
-    mqtt_client.loop_start()
-    await asyncio.sleep(0.1)
     publish(mqtt_client, MQTT_TOPIC, req)
-
+    print(RESPONSE)
+    print(REQ_ID)
     while not RESPONSE:
         await asyncio.sleep(0.1)
 
-    mqtt_client.loop_stop()
     print(RESPONSE)
+    global_lock.release()
+    mqtt_client.loop_stop()
 
 
-
+i = 0
+while i < 10:
+    test.get("/obsws_request")
+    i += 1

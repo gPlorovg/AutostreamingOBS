@@ -88,6 +88,7 @@ def get_mqtt_creds() -> dict:
 
 
 def get_obsws_creds() -> dict:
+    # Автоматическое определение и поддержание актуальным этих данных??
     host = input("Input OBS websocket host:")
     port = input("Input OBS websocket port:")
 

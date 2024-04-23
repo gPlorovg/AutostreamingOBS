@@ -357,6 +357,7 @@ def on_message(client, userdata, msg):
     if req == "PING_OBS":
         publish_ping(client, msg.topic)
     elif "req_id" in req and req["obs_name"] == OBS_NAME:
+        log.info(f"OBWSW REQUEST\nid:{req['req_id']}\nrequest:{req['request']}")
         resp = {
             "resp_id": req["req_id"],
             "response": run_obsws_request(req["request"], req["data"])
